@@ -73,6 +73,7 @@ public class MainActivity extends Activity {
             }
             prefs.edit().putInt("high", high).putInt("low", low).apply();
             startBatteryService();
+            Checker.check(this);
             Toast.makeText(this, "ذخیره شد، هشدار فعال است", Toast.LENGTH_SHORT).show();
         });
         root.addView(save);
@@ -92,7 +93,7 @@ public class MainActivity extends Activity {
         root.addView(battery);
 
         TextView hint = new TextView(this);
-        hint.setText("\nاین برنامه در پس‌زمینه شارژ گوشی را زیر نظر می‌گیرد. یک نوتیف کوچک ثابت همیشه می‌ماند تا اندروید برنامه را نبندد. وقتی شارژ به درصد بالا (موقع شارژ) یا درصد پایین برسد، هشدار فوری می‌فرستد.");
+        hint.setText("\nاین برنامه هر ۲ دقیقه (موقع شارژ) و هر ۱۰ دقیقه (حالت عادی) باتری را چک می‌کند، حتی اگر سیستم آن را بسته باشد. تا وقتی شارژ بالای حد باشد، هشدار هر ۵ دقیقه تکرار می‌شود.\n\nنکته مهم شیائومی: در صفحه برنامه‌های اخیر، این اپ را قفل کن تا سیستم آن را نبندد.");
         root.addView(hint);
 
         setContentView(root);
@@ -104,12 +105,14 @@ public class MainActivity extends Activity {
         }
 
         startBatteryService();
+        Checker.check(this);
     }
 
     @Override
     public void onRequestPermissionsResult(int requestCode, String[] permissions, int[] grantResults) {
         super.onRequestPermissionsResult(requestCode, permissions, grantResults);
         startBatteryService();
+        Checker.check(this);
     }
 
     private int parseOr(String s, int def) {

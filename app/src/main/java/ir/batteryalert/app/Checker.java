@@ -57,13 +57,15 @@ public class Checker {
         SharedPreferences p = c.getSharedPreferences("settings", Context.MODE_PRIVATE);
         int high = p.getInt("high", 80);
         int low = p.getInt("low", 20);
+        int repHigh = p.getInt("repHigh", 5);
+        int repLow = p.getInt("repLow", 10);
         long now = System.currentTimeMillis();
 
         if (charging) {
             if (p.getLong("lastLow", 0) != 0) p.edit().putLong("lastLow", 0).apply();
             if (percent >= high) {
                 long last = p.getLong("lastHigh", 0);
-                if (now - last > 5 * 60 * 1000L) {
+                if (now - last > repHigh * 60L * 1000L) {
                     p.edit().putLong("lastHigh", now).apply();
                     alert(c, 2, "شارژر را جدا کن", "باتری به " + percent + "٪ رسید");
                 }
@@ -74,7 +76,7 @@ public class Checker {
             if (p.getLong("lastHigh", 0) != 0) p.edit().putLong("lastHigh", 0).apply();
             if (percent <= low) {
                 long last = p.getLong("lastLow", 0);
-                if (now - last > 10 * 60 * 1000L) {
+                if (now - last > repLow * 60L * 1000L) {
                     p.edit().putLong("lastLow", now).apply();
                     alert(c, 3, "گوشی را به شارژ بزن", "باتری فقط " + percent + "٪ است");
                 }
@@ -90,12 +92,14 @@ public class Checker {
     }
 
     static void scheduleNext(Context c, boolean charging) {
+        SharedPreferences p = c.getSharedPreferences("settings", Context.MODE_PRIVATE);
+        int minutes = charging ? p.getInt("chkCharge", 2) : p.getInt("chkNormal", 10);
+
         AlarmManager am = c.getSystemService(AlarmManager.class);
         Intent i = new Intent(c, BootReceiver.class).setAction("ir.batteryalert.app.CHECK");
         PendingIntent pi = PendingIntent.getBroadcast(c, 10, i,
                 PendingIntent.FLAG_UPDATE_CURRENT | PendingIntent.FLAG_IMMUTABLE);
-        long delay = charging ? 2 * 60 * 1000L : 10 * 60 * 1000L;
-        long at = System.currentTimeMillis() + delay;
+        long at = System.currentTimeMillis() + minutes * 60L * 1000L;
         try {
             if (Build.VERSION.SDK_INT >= 31 && !am.canScheduleExactAlarms()) {
                 am.setAndAllowWhileIdle(AlarmManager.RTC_WAKEUP, at, pi);

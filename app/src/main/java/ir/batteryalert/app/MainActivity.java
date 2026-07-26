@@ -15,13 +15,14 @@ import android.view.View;
 import android.widget.Button;
 import android.widget.EditText;
 import android.widget.LinearLayout;
+import android.widget.ScrollView;
 import android.widget.TextView;
 import android.widget.Toast;
 
 public class MainActivity extends Activity {
 
-    private EditText highInput;
-    private EditText lowInput;
+    private EditText highInput, lowInput;
+    private EditText chkChargeInput, chkNormalInput, repHighInput, repLowInput;
 
     @Override
     protected void onCreate(Bundle savedInstanceState) {
@@ -40,38 +41,47 @@ public class MainActivity extends Activity {
         title.setTextSize(24);
         root.addView(title);
 
-        TextView highLabel = new TextView(this);
-        highLabel.setText("\nهشدار شارژ بالا (درصد) — موقع شارژ شدن:");
-        root.addView(highLabel);
+        highInput = addField(root, "\nهشدار شارژ بالا (درصد) — موقع شارژ شدن:", prefs.getInt("high", 80));
+        lowInput = addField(root, "هشدار شارژ پایین (درصد) — موقع خالی شدن:", prefs.getInt("low", 20));
 
-        highInput = new EditText(this);
-        highInput.setInputType(InputType.TYPE_CLASS_NUMBER);
-        highInput.setText(String.valueOf(prefs.getInt("high", 80)));
-        root.addView(highInput);
+        Button settingsBtn = new Button(this);
+        settingsBtn.setText("تنظیمات زمان‌بندی");
+        root.addView(settingsBtn);
 
-        TextView lowLabel = new TextView(this);
-        lowLabel.setText("هشدار شارژ پایین (درصد) — موقع خالی شدن:");
-        root.addView(lowLabel);
+        LinearLayout adv = new LinearLayout(this);
+        adv.setOrientation(LinearLayout.VERTICAL);
+        adv.setVisibility(View.GONE);
+        root.addView(adv);
 
-        lowInput = new EditText(this);
-        lowInput.setInputType(InputType.TYPE_CLASS_NUMBER);
-        lowInput.setText(String.valueOf(prefs.getInt("low", 20)));
-        root.addView(lowInput);
+        settingsBtn.setOnClickListener(v ->
+                adv.setVisibility(adv.getVisibility() == View.GONE ? View.VISIBLE : View.GONE));
+
+        chkChargeInput = addField(adv, "موقع شارژ، هر چند دقیقه چک شود؟", prefs.getInt("chkCharge", 2));
+        chkNormalInput = addField(adv, "حالت عادی، هر چند دقیقه چک شود؟", prefs.getInt("chkNormal", 10));
+        repHighInput = addField(adv, "هشدار بالا هر چند دقیقه تکرار شود؟", prefs.getInt("repHigh", 5));
+        repLowInput = addField(adv, "هشدار پایین هر چند دقیقه تکرار شود؟", prefs.getInt("repLow", 10));
+
+        TextView advHint = new TextView(this);
+        advHint.setText("عدد کمتر = واکنش سریع‌تر ولی کمی مصرف بیشتر. در خواب عمیق گوشی، خود اندروید ممکن است چک‌های کمتر از حدود ۱۰ دقیقه را کمی عقب بیندازد.");
+        adv.addView(advHint);
 
         Button save = new Button(this);
         save.setText("ذخیره و شروع");
         save.setOnClickListener(v -> {
-            int high = parseOr(highInput.getText().toString(), 80);
-            int low = parseOr(lowInput.getText().toString(), 20);
-            if (high > 100) high = 100;
-            if (high < 1) high = 1;
-            if (low < 0) low = 0;
-            if (low > 99) low = 99;
+            int high = clamp(parseOr(highInput, 80), 1, 100);
+            int low = clamp(parseOr(lowInput, 20), 0, 99);
             if (low >= high) {
                 Toast.makeText(this, "عدد پایین باید کمتر از عدد بالا باشد", Toast.LENGTH_LONG).show();
                 return;
             }
-            prefs.edit().putInt("high", high).putInt("low", low).apply();
+            prefs.edit()
+                    .putInt("high", high)
+                    .putInt("low", low)
+                    .putInt("chkCharge", clamp(parseOr(chkChargeInput, 2), 1, 60))
+                    .putInt("chkNormal", clamp(parseOr(chkNormalInput, 10), 5, 120))
+                    .putInt("repHigh", clamp(parseOr(repHighInput, 5), 1, 60))
+                    .putInt("repLow", clamp(parseOr(repLowInput, 10), 1, 120))
+                    .apply();
             startBatteryService();
             Checker.check(this);
             Toast.makeText(this, "ذخیره شد، هشدار فعال است", Toast.LENGTH_SHORT).show();
@@ -93,10 +103,12 @@ public class MainActivity extends Activity {
         root.addView(battery);
 
         TextView hint = new TextView(this);
-        hint.setText("\nاین برنامه هر ۲ دقیقه (موقع شارژ) و هر ۱۰ دقیقه (حالت عادی) باتری را چک می‌کند، حتی اگر سیستم آن را بسته باشد. تا وقتی شارژ بالای حد باشد، هشدار هر ۵ دقیقه تکرار می‌شود.\n\nنکته مهم شیائومی: در صفحه برنامه‌های اخیر، این اپ را قفل کن تا سیستم آن را نبندد.");
+        hint.setText("\nتا وقتی شارژ از حد بالا (موقع شارژ) یا حد پایین رد شده باشد، هشدار طبق فاصله‌ای که تعیین کرده‌ای تکرار می‌شود.\n\nنکته مهم شیائومی: در صفحه برنامه‌های اخیر، این اپ را قفل کن تا سیستم آن را نبندد.");
         root.addView(hint);
 
-        setContentView(root);
+        ScrollView scroll = new ScrollView(this);
+        scroll.addView(root);
+        setContentView(scroll);
 
         if (Build.VERSION.SDK_INT >= 33
                 && checkSelfPermission(android.Manifest.permission.POST_NOTIFICATIONS)
@@ -115,12 +127,29 @@ public class MainActivity extends Activity {
         Checker.check(this);
     }
 
-    private int parseOr(String s, int def) {
+    private EditText addField(LinearLayout parent, String label, int value) {
+        TextView t = new TextView(this);
+        t.setText(label);
+        parent.addView(t);
+        EditText e = new EditText(this);
+        e.setInputType(InputType.TYPE_CLASS_NUMBER);
+        e.setText(String.valueOf(value));
+        parent.addView(e);
+        return e;
+    }
+
+    private int parseOr(EditText e, int def) {
         try {
-            return Integer.parseInt(s.trim());
-        } catch (Exception e) {
+            return Integer.parseInt(e.getText().toString().trim());
+        } catch (Exception ex) {
             return def;
         }
+    }
+
+    private int clamp(int v, int min, int max) {
+        if (v < min) return min;
+        if (v > max) return max;
+        return v;
     }
 
     private void startBatteryService() {

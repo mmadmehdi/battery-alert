@@ -82,7 +82,6 @@ public class MainActivity extends Activity {
                     .putInt("repHigh", clamp(parseOr(repHighInput, 5), 1, 60))
                     .putInt("repLow", clamp(parseOr(repLowInput, 10), 1, 120))
                     .apply();
-            startBatteryService();
             Checker.check(this);
             Toast.makeText(this, "ذخیره شد، هشدار فعال است", Toast.LENGTH_SHORT).show();
         });
@@ -116,14 +115,12 @@ public class MainActivity extends Activity {
             requestPermissions(new String[]{android.Manifest.permission.POST_NOTIFICATIONS}, 1);
         }
 
-        startBatteryService();
         Checker.check(this);
     }
 
     @Override
     public void onRequestPermissionsResult(int requestCode, String[] permissions, int[] grantResults) {
         super.onRequestPermissionsResult(requestCode, permissions, grantResults);
-        startBatteryService();
         Checker.check(this);
     }
 
@@ -150,14 +147,5 @@ public class MainActivity extends Activity {
         if (v < min) return min;
         if (v > max) return max;
         return v;
-    }
-
-    private void startBatteryService() {
-        Intent i = new Intent(this, BatteryService.class);
-        if (Build.VERSION.SDK_INT >= 26) {
-            startForegroundService(i);
-        } else {
-            startService(i);
-        }
     }
 }

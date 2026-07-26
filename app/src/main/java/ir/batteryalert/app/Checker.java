@@ -12,14 +12,15 @@ import android.content.SharedPreferences;
 import android.media.AudioAttributes;
 import android.media.RingtoneManager;
 import android.os.BatteryManager;
-import android.os.Build;
 
 public class Checker {
 
     static final String CH_STATUS = "status";
     static final String CH_ALERT = "alert2";
+    private static boolean channelsReady = false;
 
     static void ensureChannels(Context c) {
+        if (channelsReady) return;
         NotificationManager nm = c.getSystemService(NotificationManager.class);
 
         NotificationChannel status = new NotificationChannel(
@@ -31,14 +32,13 @@ public class Checker {
                 CH_ALERT, "هشدار فوری باتری", NotificationManager.IMPORTANCE_HIGH);
         alert.enableVibration(true);
         alert.setVibrationPattern(new long[]{0, 600, 250, 600, 250, 600});
-        AudioAttributes attrs = new AudioAttributes.Builder()
-                .setUsage(AudioAttributes.USAGE_ALARM)
-                .setContentType(AudioAttributes.CONTENT_TYPE_SONIFICATION)
-                .build();
-        alert.setSound(RingtoneManager.getDefaultUri(RingtoneManager.TYPE_ALARM), attrs);
+        alert.setSound(RingtoneManager.getDefaultUri(RingtoneManager.TYPE_ALARM),
+                new AudioAttributes.Builder()
+                        .setUsage(AudioAttributes.USAGE_ALARM)
+                        .setContentType(AudioAttributes.CONTENT_TYPE_SONIFICATION)
+                        .build());
         nm.createNotificationChannel(alert);
-
-        nm.deleteNotificationChannel("alert");
+        channelsReady = true;
     }
 
     static void check(Context c) {
@@ -55,38 +55,25 @@ public class Checker {
         boolean charging = b.getIntExtra(BatteryManager.EXTRA_PLUGGED, 0) != 0;
 
         SharedPreferences p = c.getSharedPreferences("settings", Context.MODE_PRIVATE);
-        int high = p.getInt("high", 80);
-        int low = p.getInt("low", 20);
-        int repHigh = p.getInt("repHigh", 5);
-        int repLow = p.getInt("repLow", 10);
         long now = System.currentTimeMillis();
 
-        if (charging) {
-            if (p.getLong("lastLow", 0) != 0) p.edit().putLong("lastLow", 0).apply();
-            if (percent >= high) {
-                long last = p.getLong("lastHigh", 0);
-                if (now - last > repHigh * 60L * 1000L) {
-                    p.edit().putLong("lastHigh", now).apply();
-                    alert(c, 2, "شارژر را جدا کن", "باتری به " + percent + "٪ رسید");
-                }
-            } else {
-                if (p.getLong("lastHigh", 0) != 0) p.edit().putLong("lastHigh", 0).apply();
+        if (charging && percent >= p.getInt("high", 80)) {
+            if (now - p.getLong("lastHigh", 0) > p.getInt("repHigh", 5) * 60000L) {
+                p.edit().putLong("lastHigh", now).putLong("lastLow", 0).apply();
+                alert(c, 2, "شارژر را جدا کن", "باتری به " + percent + "٪ رسید");
+            }
+        } else if (!charging && percent <= p.getInt("low", 20)) {
+            if (now - p.getLong("lastLow", 0) > p.getInt("repLow", 10) * 60000L) {
+                p.edit().putLong("lastLow", now).putLong("lastHigh", 0).apply();
+                alert(c, 3, "گوشی را به شارژ بزن", "باتری فقط " + percent + "٪ است");
             }
         } else {
-            if (p.getLong("lastHigh", 0) != 0) p.edit().putLong("lastHigh", 0).apply();
-            if (percent <= low) {
-                long last = p.getLong("lastLow", 0);
-                if (now - last > repLow * 60L * 1000L) {
-                    p.edit().putLong("lastLow", now).apply();
-                    alert(c, 3, "گوشی را به شارژ بزن", "باتری فقط " + percent + "٪ است");
-                }
-            } else {
-                if (p.getLong("lastLow", 0) != 0) p.edit().putLong("lastLow", 0).apply();
-            }
+            p.edit().putLong("lastHigh", 0).putLong("lastLow", 0).apply();
         }
 
-        NotificationManager nm = c.getSystemService(NotificationManager.class);
-        nm.notify(1, status(c, "باتری: " + percent + "٪  |  هشدار در: " + high + "٪ و " + low + "٪"));
+        c.getSystemService(NotificationManager.class).notify(1, status(c,
+                "باتری: " + percent + "٪  |  هشدار در: "
+                + p.getInt("high", 80) + "٪ و " + p.getInt("low", 20) + "٪"));
 
         scheduleNext(c, charging);
     }
@@ -96,16 +83,12 @@ public class Checker {
         int minutes = charging ? p.getInt("chkCharge", 2) : p.getInt("chkNormal", 10);
 
         AlarmManager am = c.getSystemService(AlarmManager.class);
-        Intent i = new Intent(c, BootReceiver.class).setAction("ir.batteryalert.app.CHECK");
-        PendingIntent pi = PendingIntent.getBroadcast(c, 10, i,
+        PendingIntent pi = PendingIntent.getBroadcast(c, 10,
+                new Intent(c, BootReceiver.class).setAction("ir.batteryalert.app.CHECK"),
                 PendingIntent.FLAG_UPDATE_CURRENT | PendingIntent.FLAG_IMMUTABLE);
-        long at = System.currentTimeMillis() + minutes * 60L * 1000L;
+        long at = System.currentTimeMillis() + minutes * 60000L;
         try {
-            if (Build.VERSION.SDK_INT >= 31 && !am.canScheduleExactAlarms()) {
-                am.setAndAllowWhileIdle(AlarmManager.RTC_WAKEUP, at, pi);
-            } else {
-                am.setExactAndAllowWhileIdle(AlarmManager.RTC_WAKEUP, at, pi);
-            }
+            am.setExactAndAllowWhileIdle(AlarmManager.RTC_WAKEUP, at, pi);
         } catch (Exception e) {
             am.set(AlarmManager.RTC_WAKEUP, at, pi);
         }

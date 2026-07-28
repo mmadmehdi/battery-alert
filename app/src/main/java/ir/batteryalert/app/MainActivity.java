@@ -23,7 +23,7 @@ import android.widget.Toast;
 public class MainActivity extends Activity {
 
     private EditText highInput, lowInput;
-    private EditText chkChargeInput, chkNormalInput, repHighInput, repLowInput;
+    private EditText repHighInput, repLowInput;
 
     @Override
     protected void onCreate(Bundle savedInstanceState) {
@@ -46,7 +46,7 @@ public class MainActivity extends Activity {
         lowInput = addField(root, "هشدار شارژ پایین (درصد) — موقع خالی شدن:", prefs.getInt("low", 20));
 
         Button settingsBtn = new Button(this);
-        settingsBtn.setText("تنظیمات زمان‌بندی");
+        settingsBtn.setText("تنظیمات تکرار هشدار");
         root.addView(settingsBtn);
 
         LinearLayout adv = new LinearLayout(this);
@@ -57,14 +57,8 @@ public class MainActivity extends Activity {
         settingsBtn.setOnClickListener(v ->
                 adv.setVisibility(adv.getVisibility() == View.GONE ? View.VISIBLE : View.GONE));
 
-        chkChargeInput = addField(adv, "موقع شارژ، هر چند دقیقه چک شود؟", prefs.getInt("chkCharge", 2));
-        chkNormalInput = addField(adv, "حالت عادی، هر چند دقیقه چک شود؟", prefs.getInt("chkNormal", 10));
         repHighInput = addField(adv, "هشدار بالا هر چند دقیقه تکرار شود؟", prefs.getInt("repHigh", 5));
         repLowInput = addField(adv, "هشدار پایین هر چند دقیقه تکرار شود؟", prefs.getInt("repLow", 10));
-
-        TextView advHint = new TextView(this);
-        advHint.setText("عدد کمتر = واکنش سریع‌تر ولی کمی مصرف بیشتر.");
-        adv.addView(advHint);
 
         Button save = new Button(this);
         save.setText("ذخیره و شروع");
@@ -78,8 +72,6 @@ public class MainActivity extends Activity {
             prefs.edit()
                     .putInt("high", high)
                     .putInt("low", low)
-                    .putInt("chkCharge", clamp(parseOr(chkChargeInput, 2), 1, 60))
-                    .putInt("chkNormal", clamp(parseOr(chkNormalInput, 10), 5, 120))
                     .putInt("repHigh", clamp(parseOr(repHighInput, 5), 1, 60))
                     .putInt("repLow", clamp(parseOr(repLowInput, 10), 1, 120))
                     .apply();
@@ -121,7 +113,7 @@ public class MainActivity extends Activity {
         root.addView(exactAlarm);
 
         TextView hint = new TextView(this);
-        hint.setText("\nتا وقتی شارژ از حد بالا (موقع شارژ) یا حد پایین رد شده باشد، هشدار طبق فاصله‌ای که تعیین کرده‌ای تکرار می‌شود.\n\nالان برنامه با یک سرویس دائمی (همان نوتیفیکیشن ثابت پایین صفحه) کار می‌کند تا سیستم آن را نکشد. با این حال هر دو دکمه بالا را هم بزن.\n\nنکته مهم شیائومی: در صفحه برنامه‌های اخیر، این اپ را قفل کن تا سیستم آن را نبندد.");
+        hint.setText("\nدرصد باتری دیگر لحظه‌به‌لحظه و بدون تاخیر دریافت می‌شود (نه با پرسیدن دوره‌ای).\n\nتا وقتی شارژ از حد بالا (موقع شارژ) یا حد پایین رد شده باشد، هشدار طبق فاصله‌ای که تعیین کرده‌ای تکرار می‌شود.\n\nنکته مهم شیائومی: در صفحه برنامه‌های اخیر، این اپ را قفل کن تا سیستم آن را نبندد.");
         root.addView(hint);
 
         ScrollView scroll = new ScrollView(this);

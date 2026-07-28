@@ -7,7 +7,6 @@ import android.app.NotificationManager;
 import android.app.PendingIntent;
 import android.content.Context;
 import android.content.Intent;
-import android.content.IntentFilter;
 import android.content.SharedPreferences;
 import android.media.AudioAttributes;
 import android.media.RingtoneManager;
@@ -42,17 +41,18 @@ public class Checker {
         channelsReady = true;
     }
 
-    /** یک بار وضعیت باتری را چک می‌کند و می‌گوید الان در حال شارژ هست یا نه. */
-    static boolean check(Context c) {
+    /**
+     * دیگر خودش باتری را نمی‌پرسد (آن روش کند بود). به جایش خودِ سیستم هر بار که
+     * درصد باتری حتی یک واحد عوض شود یا شارژر وصل/قطع شود، این Intent را می‌فرستد
+     * و همان لحظه اینجا پردازش می‌شود؛ یعنی دیگر هیچ تاخیری در دریافت درصد نیست.
+     */
+    static void checkFromIntent(Context c, Intent b) {
         ensureChannels(c);
-
-        Intent b = c.getApplicationContext().registerReceiver(
-                null, new IntentFilter(Intent.ACTION_BATTERY_CHANGED));
-        if (b == null) return false;
+        if (b == null) return;
 
         int level = b.getIntExtra(BatteryManager.EXTRA_LEVEL, -1);
         int scale = b.getIntExtra(BatteryManager.EXTRA_SCALE, 100);
-        if (level < 0 || scale <= 0) return false;
+        if (level < 0 || scale <= 0) return;
         int percent = (int) (level * 100L / scale);
         boolean charging = b.getIntExtra(BatteryManager.EXTRA_PLUGGED, 0) != 0;
 
@@ -78,19 +78,11 @@ public class Checker {
                 + p.getInt("high", 80) + "٪ و " + p.getInt("low", 20) + "٪"));
 
         scheduleRestartAlarm(c);
-        return charging;
-    }
-
-    /** برنامه هر چند دقیقه باید دوباره چک کند (تنظیمات کاربر). */
-    static int nextIntervalMinutes(Context c, boolean charging) {
-        SharedPreferences p = c.getSharedPreferences("settings", Context.MODE_PRIVATE);
-        return charging ? p.getInt("chkCharge", 2) : p.getInt("chkNormal", 10);
     }
 
     /**
-     * این فقط یک "زنگ خطر پشتیبان" است: اگر سیستم سرویس اصلی را کشت،
-     * حداکثر تا ۱۵ دقیقه بعد این آلارم دوباره سرویس را روشن می‌کند.
-     * موتور اصلی چک کردن، حلقه‌ی داخل BatteryService است، نه این آلارم.
+     * فقط زنگ خطر پشتیبان: اگر بنا به هر دلیلی سرویس اصلی کشته شد،
+     * حداکثر ۱۵ دقیقه بعد دوباره روشنش می‌کند تا گیرنده‌ی لحظه‌ای دوباره ثبت شود.
      */
     static void scheduleRestartAlarm(Context c) {
         AlarmManager am = c.getSystemService(AlarmManager.class);

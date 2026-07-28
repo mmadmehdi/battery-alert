@@ -42,16 +42,17 @@ public class Checker {
         channelsReady = true;
     }
 
-    static void check(Context c) {
+    /** یک بار وضعیت باتری را چک می‌کند و می‌گوید الان در حال شارژ هست یا نه. */
+    static boolean check(Context c) {
         ensureChannels(c);
 
         Intent b = c.getApplicationContext().registerReceiver(
                 null, new IntentFilter(Intent.ACTION_BATTERY_CHANGED));
-        if (b == null) return;
+        if (b == null) return false;
 
         int level = b.getIntExtra(BatteryManager.EXTRA_LEVEL, -1);
         int scale = b.getIntExtra(BatteryManager.EXTRA_SCALE, 100);
-        if (level < 0 || scale <= 0) return;
+        if (level < 0 || scale <= 0) return false;
         int percent = (int) (level * 100L / scale);
         boolean charging = b.getIntExtra(BatteryManager.EXTRA_PLUGGED, 0) != 0;
 
@@ -76,27 +77,32 @@ public class Checker {
                 "باتری: " + percent + "٪  |  هشدار در: "
                 + p.getInt("high", 80) + "٪ و " + p.getInt("low", 20) + "٪"));
 
-        scheduleNext(c, charging);
+        scheduleRestartAlarm(c);
+        return charging;
     }
 
-    static void scheduleNext(Context c, boolean charging) {
+    /** برنامه هر چند دقیقه باید دوباره چک کند (تنظیمات کاربر). */
+    static int nextIntervalMinutes(Context c, boolean charging) {
         SharedPreferences p = c.getSharedPreferences("settings", Context.MODE_PRIVATE);
-        int minutes = charging ? p.getInt("chkCharge", 2) : p.getInt("chkNormal", 10);
+        return charging ? p.getInt("chkCharge", 2) : p.getInt("chkNormal", 10);
+    }
 
+    /**
+     * این فقط یک "زنگ خطر پشتیبان" است: اگر سیستم سرویس اصلی را کشت،
+     * حداکثر تا ۱۵ دقیقه بعد این آلارم دوباره سرویس را روشن می‌کند.
+     * موتور اصلی چک کردن، حلقه‌ی داخل BatteryService است، نه این آلارم.
+     */
+    static void scheduleRestartAlarm(Context c) {
         AlarmManager am = c.getSystemService(AlarmManager.class);
         PendingIntent pi = PendingIntent.getBroadcast(c, 10,
-                new Intent(c, BootReceiver.class).setAction("ir.batteryalert.app.CHECK"),
+                new Intent(c, BootReceiver.class).setAction("ir.batteryalert.app.RESTART"),
                 PendingIntent.FLAG_UPDATE_CURRENT | PendingIntent.FLAG_IMMUTABLE);
-        long at = System.currentTimeMillis() + minutes * 60000L;
+        long at = System.currentTimeMillis() + 15 * 60000L;
 
-        // نکته مهم: قبل از هر چیز چک می‌کنیم که سیستم واقعا اجازه آلارم دقیق داده یا نه.
-        // بدون این چک، اندروید ممکن است بی‌سروصدا آلارم را نامنظم و با تاخیر زیاد اجرا کند
-        // که دقیقا همان علت هشدارهای "عشقی" است.
         boolean canExact = true;
         if (Build.VERSION.SDK_INT >= 31) {
             canExact = am.canScheduleExactAlarms();
         }
-
         if (canExact) {
             try {
                 am.setExactAndAllowWhileIdle(AlarmManager.RTC_WAKEUP, at, pi);

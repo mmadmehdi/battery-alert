@@ -63,7 +63,7 @@ public class MainActivity extends Activity {
         repLowInput = addField(adv, "هشدار پایین هر چند دقیقه تکرار شود؟", prefs.getInt("repLow", 10));
 
         TextView advHint = new TextView(this);
-        advHint.setText("عدد کمتر = واکنش سریع‌تر ولی کمی مصرف بیشتر. در خواب عمیق گوشی، خود اندروید ممکن است چک‌های کمتر از حدود ۱۰ دقیقه را کمی عقب بیندازد.");
+        advHint.setText("عدد کمتر = واکنش سریع‌تر ولی کمی مصرف بیشتر.");
         adv.addView(advHint);
 
         Button save = new Button(this);
@@ -83,7 +83,7 @@ public class MainActivity extends Activity {
                     .putInt("repHigh", clamp(parseOr(repHighInput, 5), 1, 60))
                     .putInt("repLow", clamp(parseOr(repLowInput, 10), 1, 120))
                     .apply();
-            Checker.check(this);
+            startBatteryService();
             Toast.makeText(this, "ذخیره شد، هشدار فعال است", Toast.LENGTH_SHORT).show();
         });
         root.addView(save);
@@ -103,7 +103,7 @@ public class MainActivity extends Activity {
         root.addView(battery);
 
         Button exactAlarm = new Button(this);
-        exactAlarm.setText("اجازه آلارم دقیق (خیلی مهم — بدون این هشدارها نامنظم می‌شوند)");
+        exactAlarm.setText("اجازه آلارم دقیق (پشتیبان)");
         exactAlarm.setOnClickListener(v -> {
             if (Build.VERSION.SDK_INT < 31) {
                 Toast.makeText(this, "روی این نسخه اندروید لازم نیست", Toast.LENGTH_SHORT).show();
@@ -121,7 +121,7 @@ public class MainActivity extends Activity {
         root.addView(exactAlarm);
 
         TextView hint = new TextView(this);
-        hint.setText("\nتا وقتی شارژ از حد بالا (موقع شارژ) یا حد پایین رد شده باشد، هشدار طبق فاصله‌ای که تعیین کرده‌ای تکرار می‌شود.\n\nنکته مهم: هر دو دکمه بالا (پس‌زمینه و آلارم دقیق) را حتما بزن، وگرنه هشدارها نامنظم می‌شوند یا اصلا نمی‌آیند.\n\nنکته مهم شیائومی: در صفحه برنامه‌های اخیر، این اپ را قفل کن تا سیستم آن را نبندد.");
+        hint.setText("\nتا وقتی شارژ از حد بالا (موقع شارژ) یا حد پایین رد شده باشد، هشدار طبق فاصله‌ای که تعیین کرده‌ای تکرار می‌شود.\n\nالان برنامه با یک سرویس دائمی (همان نوتیفیکیشن ثابت پایین صفحه) کار می‌کند تا سیستم آن را نکشد. با این حال هر دو دکمه بالا را هم بزن.\n\nنکته مهم شیائومی: در صفحه برنامه‌های اخیر، این اپ را قفل کن تا سیستم آن را نبندد.");
         root.addView(hint);
 
         ScrollView scroll = new ScrollView(this);
@@ -134,13 +134,22 @@ public class MainActivity extends Activity {
             requestPermissions(new String[]{android.Manifest.permission.POST_NOTIFICATIONS}, 1);
         }
 
-        Checker.check(this);
+        startBatteryService();
     }
 
     @Override
     public void onRequestPermissionsResult(int requestCode, String[] permissions, int[] grantResults) {
         super.onRequestPermissionsResult(requestCode, permissions, grantResults);
-        Checker.check(this);
+        startBatteryService();
+    }
+
+    private void startBatteryService() {
+        Intent i = new Intent(this, BatteryService.class);
+        if (Build.VERSION.SDK_INT >= 26) {
+            startForegroundService(i);
+        } else {
+            startService(i);
+        }
     }
 
     private EditText addField(LinearLayout parent, String label, int value) {

@@ -12,6 +12,7 @@ import android.content.SharedPreferences;
 import android.media.AudioAttributes;
 import android.media.RingtoneManager;
 import android.os.BatteryManager;
+import android.os.Build;
 
 public class Checker {
 
@@ -87,11 +88,24 @@ public class Checker {
                 new Intent(c, BootReceiver.class).setAction("ir.batteryalert.app.CHECK"),
                 PendingIntent.FLAG_UPDATE_CURRENT | PendingIntent.FLAG_IMMUTABLE);
         long at = System.currentTimeMillis() + minutes * 60000L;
-        try {
-            am.setExactAndAllowWhileIdle(AlarmManager.RTC_WAKEUP, at, pi);
-        } catch (Exception e) {
-            am.set(AlarmManager.RTC_WAKEUP, at, pi);
+
+        // نکته مهم: قبل از هر چیز چک می‌کنیم که سیستم واقعا اجازه آلارم دقیق داده یا نه.
+        // بدون این چک، اندروید ممکن است بی‌سروصدا آلارم را نامنظم و با تاخیر زیاد اجرا کند
+        // که دقیقا همان علت هشدارهای "عشقی" است.
+        boolean canExact = true;
+        if (Build.VERSION.SDK_INT >= 31) {
+            canExact = am.canScheduleExactAlarms();
         }
+
+        if (canExact) {
+            try {
+                am.setExactAndAllowWhileIdle(AlarmManager.RTC_WAKEUP, at, pi);
+                return;
+            } catch (Exception e) {
+                // ادامه به حالت جایگزین زیر
+            }
+        }
+        am.setAndAllowWhileIdle(AlarmManager.RTC_WAKEUP, at, pi);
     }
 
     static Notification status(Context c, String text) {

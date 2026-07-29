@@ -8,11 +8,8 @@ import android.content.IntentFilter;
 import android.os.IBinder;
 
 /**
- * این سرویس همیشه زنده می‌ماند (همان نوتیفیکیشن کم‌اهمیت قبلی) و مستقیماً روی
- * پخش سیستمی ACTION_BATTERY_CHANGED ثبت‌نام می‌کند. اندروید این پخش را همان
- * لحظه‌ای که درصد باتری حتی یک واحد تغییر کند یا شارژر وصل/قطع شود می‌فرستد،
- * پس دیگر نیازی به "هر چند دقیقه یک بار پرسیدن" نیست و دیگر تاخیری در دریافت
- * درصد باتری وجود ندارد.
+ * این سرویس همیشه زنده می‌ماند و مستقیماً روی پخش سیستمی ACTION_BATTERY_CHANGED
+ * ثبت‌نام می‌کند، پس درصد باتری بدون هیچ تاخیری دریافت می‌شود. (بدون تغییر)
  */
 public class BatteryService extends Service {
 
@@ -49,7 +46,7 @@ public class BatteryService extends Service {
             }
         }
         // اگر سیستم سرویس را کشت، آلارم پشتیبان دوباره روشنش می‌کند
-        Checker.scheduleRestartAlarm(this);
+        Checker.scheduleRestartAlarm(this, true);
         super.onDestroy();
     }
 

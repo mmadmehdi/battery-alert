@@ -1,3 +1,65 @@
+#!/data/data/com.termux/files/usr/bin/bash
+set -e
+
+echo "=================================="
+echo "  آپدیت اپ هشدار باتری - نسخه 1.7"
+echo "  (کم‌مصرف‌تر، بدون تغییر در هشدارها)"
+echo "=================================="
+echo ""
+
+if [ ! -d ~/battery-alert/.git ]; then
+  echo "پوشه پروژه پیدا نشد! اول اسکریپت ساخت اولیه را اجرا کن."
+  exit 1
+fi
+
+cd ~/battery-alert
+
+echo "در حال به‌روز کردن فایل‌های برنامه..."
+
+# --- build.gradle: فقط شماره نسخه بالا می‌رود ---
+cat > app/build.gradle << 'EOF_APPGRADLE'
+plugins {
+    id 'com.android.application'
+}
+
+android {
+    namespace 'ir.batteryalert.app'
+    compileSdk 34
+
+    defaultConfig {
+        applicationId "ir.batteryalert.app"
+        minSdk 26
+        targetSdk 33
+        versionCode 8
+        versionName "1.7"
+    }
+
+    signingConfigs {
+        stable {
+            storeFile file('debug.keystore')
+            storePassword 'android'
+            keyAlias 'androiddebugkey'
+            keyPassword 'android'
+        }
+    }
+
+    buildTypes {
+        debug {
+            if (file('debug.keystore').exists()) {
+                signingConfig signingConfigs.stable
+            }
+        }
+    }
+
+    compileOptions {
+        sourceCompatibility JavaVersion.VERSION_17
+        targetCompatibility JavaVersion.VERSION_17
+    }
+}
+EOF_APPGRADLE
+
+# --- Checker.java: منطق هشدار عیناً همان است، فقط کارهای بی‌مصرف حذف شده ---
+cat > app/src/main/java/ir/batteryalert/app/Checker.java << 'EOF_CHECKER'
 package ir.batteryalert.app;
 
 import android.app.AlarmManager;
@@ -162,3 +224,92 @@ public class Checker {
         c.getSystemService(NotificationManager.class).notify(id, n);
     }
 }
+EOF_CHECKER
+
+# --- BatteryService.java: مثل قبل، فقط موقع مرگ سرویس آلارم را قطعی ثبت می‌کند ---
+cat > app/src/main/java/ir/batteryalert/app/BatteryService.java << 'EOF_SERVICE'
+package ir.batteryalert.app;
+
+import android.app.Service;
+import android.content.BroadcastReceiver;
+import android.content.Context;
+import android.content.Intent;
+import android.content.IntentFilter;
+import android.os.IBinder;
+
+/**
+ * این سرویس همیشه زنده می‌ماند و مستقیماً روی پخش سیستمی ACTION_BATTERY_CHANGED
+ * ثبت‌نام می‌کند، پس درصد باتری بدون هیچ تاخیری دریافت می‌شود. (بدون تغییر)
+ */
+public class BatteryService extends Service {
+
+    private BroadcastReceiver batteryReceiver;
+
+    @Override
+    public void onCreate() {
+        super.onCreate();
+        Checker.ensureChannels(this);
+        startForeground(1, Checker.status(this, "در حال بررسی باتری..."));
+
+        batteryReceiver = new BroadcastReceiver() {
+            @Override
+            public void onReceive(Context context, Intent intent) {
+                Checker.checkFromIntent(BatteryService.this, intent);
+            }
+        };
+        // این تابع خودش بلافاصله آخرین وضعیت باتری را برمی‌گرداند (sticky broadcast)
+        Intent sticky = registerReceiver(batteryReceiver, new IntentFilter(Intent.ACTION_BATTERY_CHANGED));
+        Checker.checkFromIntent(this, sticky);
+    }
+
+    @Override
+    public int onStartCommand(Intent intent, int flags, int startId) {
+        return START_STICKY;
+    }
+
+    @Override
+    public void onDestroy() {
+        if (batteryReceiver != null) {
+            try {
+                unregisterReceiver(batteryReceiver);
+            } catch (Exception ignored) {
+            }
+        }
+        // اگر سیستم سرویس را کشت، آلارم پشتیبان دوباره روشنش می‌کند
+        Checker.scheduleRestartAlarm(this, true);
+        super.onDestroy();
+    }
+
+    @Override
+    public IBinder onBind(Intent intent) {
+        return null;
+    }
+}
+EOF_SERVICE
+
+echo "در حال ارسال به گیت‌هاب..."
+git add -A
+git commit -m "نسخه 1.7 - کاهش مصرف باتری: حذف نوشتن و آپدیت و آلارم‌های تکراری بی‌فایده"
+git push origin main
+
+echo ""
+echo "=================================="
+echo "  تمام شد!"
+echo "=================================="
+echo ""
+echo "منطق هشدارها هیچ تغییری نکرده. فقط سه کار بی‌فایده که هر چند ثانیه"
+echo "یک بار انجام می‌شد حذف شد:"
+echo "  ۱) نوشتن روی حافظه وقتی مقدارش همان بود"
+echo "  ۲) فرستادن دوباره‌ی نوتیفیکیشن وضعیت وقتی متنش همان بود"
+echo "  ۳) ثبت هزاران آلارم پشتیبان (حالا هر ۱۰ دقیقه یک بار)"
+echo ""
+echo "۱) صبر کن تیک سبز بیاید:"
+echo "   https://github.com/mmadmehdi/battery-alert/actions"
+echo ""
+echo "۲) جدیدترین نسخه (بالاترین شماره) را دانلود کن:"
+echo "   https://github.com/mmadmehdi/battery-alert/releases"
+echo ""
+echo "۳) اپ قبلی را حذف کن، نسخه جدید را نصب کن."
+echo ""
+echo "۴) بعد از نصب حتما هر دو دکمه را بزن و اپ را در برنامه‌های اخیر قفل کن."
+echo ""

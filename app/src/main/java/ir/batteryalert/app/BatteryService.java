@@ -8,8 +8,9 @@ import android.content.IntentFilter;
 import android.os.IBinder;
 
 /**
- * این سرویس همیشه زنده می‌ماند و مستقیماً روی پخش سیستمی ACTION_BATTERY_CHANGED
- * ثبت‌نام می‌کند، پس درصد باتری بدون هیچ تاخیری دریافت می‌شود. (بدون تغییر)
+ * این سرویس همیشه زنده می‌ماند (همان نوتیفیکیشن کم‌اهمیت قبلی) و مستقیماً روی
+ * پخش سیستمی ACTION_BATTERY_CHANGED ثبت‌نام می‌کند. این بخش دست‌نخورده مانده،
+ * چون همان چیزی است که الان عالی کار می‌کند.
  */
 public class BatteryService extends Service {
 
@@ -27,7 +28,6 @@ public class BatteryService extends Service {
                 Checker.checkFromIntent(BatteryService.this, intent);
             }
         };
-        // این تابع خودش بلافاصله آخرین وضعیت باتری را برمی‌گرداند (sticky broadcast)
         Intent sticky = registerReceiver(batteryReceiver, new IntentFilter(Intent.ACTION_BATTERY_CHANGED));
         Checker.checkFromIntent(this, sticky);
     }
@@ -45,8 +45,7 @@ public class BatteryService extends Service {
             } catch (Exception ignored) {
             }
         }
-        // اگر سیستم سرویس را کشت، آلارم پشتیبان دوباره روشنش می‌کند
-        Checker.scheduleRestartAlarm(this, true);
+        Checker.scheduleRestartAlarm(this);
         super.onDestroy();
     }
 

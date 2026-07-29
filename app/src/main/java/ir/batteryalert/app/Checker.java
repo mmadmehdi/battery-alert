@@ -11,17 +11,12 @@ import android.content.SharedPreferences;
 import android.media.AudioAttributes;
 import android.media.RingtoneManager;
 import android.os.BatteryManager;
-import android.os.Build;
 
 public class Checker {
 
     static final String CH_STATUS = "status";
     static final String CH_ALERT = "alert2";
     private static boolean channelsReady = false;
-
-    // یادگاری‌های ساده در حافظه، برای اینکه کار تکراری انجام نشود
-    private static String lastStatusText = null;
-    private static long lastAlarmSetAt = 0;
 
     static void ensureChannels(Context c) {
         if (channelsReady) return;
@@ -46,18 +41,13 @@ public class Checker {
     }
 
     /**
-     * همان روش قبلی: سیستم هر بار که وضعیت باتری عوض شود این Intent را می‌فرستد
-     * و همان لحظه اینجا پردازش می‌شود. شرط‌های هشدار و تکرارشان هیچ تغییری نکرده‌اند.
-     *
-     * تنها تفاوت: اندروید این پخش را هر چند ثانیه می‌فرستد (دما و ولتاژ هم آن را
-     * عوض می‌کند)، پس کارهای گران‌قیمت فقط وقتی انجام می‌شوند که واقعاً لازم باشند:
-     *   - نوشتن روی حافظه فقط وقتی مقدارش عوض شده
-     *   - آپدیت نوتیفیکیشن فقط وقتی متنش عوض شده
-     *   - ثبت آلارم پشتیبان حداکثر هر ۱۰ دقیقه یک بار
+     * دقیقا همان روشی که الان عالی کار می‌کند: خودِ سیستم هر بار که درصد باتری
+     * حتی یک واحد عوض شود یا شارژر وصل/قطع شود، این Intent را می‌فرستد و همان
+     * لحظه اینجا پردازش می‌شود. این تابع دست‌نخورده مانده است.
      */
     static void checkFromIntent(Context c, Intent b) {
-        if (b == null) return;
         ensureChannels(c);
+        if (b == null) return;
 
         int level = b.getIntExtra(BatteryManager.EXTRA_LEVEL, -1);
         int scale = b.getIntExtra(BatteryManager.EXTRA_SCALE, 100);
@@ -67,71 +57,41 @@ public class Checker {
 
         SharedPreferences p = c.getSharedPreferences("settings", Context.MODE_PRIVATE);
         long now = System.currentTimeMillis();
-        int high = p.getInt("high", 80);
-        int low = p.getInt("low", 20);
 
-        if (charging && percent >= high) {
+        if (charging && percent >= p.getInt("high", 80)) {
             if (now - p.getLong("lastHigh", 0) > p.getInt("repHigh", 5) * 60000L) {
                 p.edit().putLong("lastHigh", now).putLong("lastLow", 0).apply();
                 alert(c, 2, "شارژر را جدا کن", "باتری به " + percent + "٪ رسید");
             }
-        } else if (!charging && percent <= low) {
+        } else if (!charging && percent <= p.getInt("low", 20)) {
             if (now - p.getLong("lastLow", 0) > p.getInt("repLow", 10) * 60000L) {
                 p.edit().putLong("lastLow", now).putLong("lastHigh", 0).apply();
                 alert(c, 3, "گوشی را به شارژ بزن", "باتری فقط " + percent + "٪ است");
             }
         } else {
-            // قبلا این دو مقدار هر چند ثانیه یک بار بی‌دلیل روی حافظه نوشته می‌شدند
-            if (p.getLong("lastHigh", 0) != 0 || p.getLong("lastLow", 0) != 0) {
-                p.edit().putLong("lastHigh", 0).putLong("lastLow", 0).apply();
-            }
+            p.edit().putLong("lastHigh", 0).putLong("lastLow", 0).apply();
         }
 
-        // نوتیفیکیشن وضعیت فقط وقتی عوض شده دوباره فرستاده می‌شود
-        String text = "باتری: " + percent + "٪  |  هشدار در: " + high + "٪ و " + low + "٪";
-        if (!text.equals(lastStatusText)) {
-            lastStatusText = text;
-            c.getSystemService(NotificationManager.class).notify(1, status(c, text));
-        }
+        c.getSystemService(NotificationManager.class).notify(1, status(c,
+                "باتری: " + percent + "٪  |  هشدار در: "
+                + p.getInt("high", 80) + "٪ و " + p.getInt("low", 20) + "٪"));
 
         scheduleRestartAlarm(c);
     }
 
-    static void scheduleRestartAlarm(Context c) {
-        scheduleRestartAlarm(c, false);
-    }
-
     /**
-     * فقط زنگ خطر پشتیبان: اگر بنا به هر دلیلی سرویس اصلی کشته شد،
-     * حداکثر ۱۵ دقیقه بعد دوباره روشنش می‌کند تا گیرنده‌ی لحظه‌ای دوباره ثبت شود.
-     *
-     * تا وقتی سرویس سلامت است این آلارم مرتب به جلو هل داده می‌شود و عملا هیچ‌وقت
-     * زنگ نمی‌زند (مثل قبل)، ولی حالا به جای هزاران بار در روز، فقط هر ۱۰ دقیقه
-     * یک بار ثبت می‌شود.
+     * فقط زنگ خطر پشتیبان (نه بخشی از دریافت باتری): اگر سرویس اصلی به هر دلیلی
+     * کشته شود، دوباره روشنش می‌کند. چون این فقط یک بیمه است و نیازی به دقت
+     * ثانیه‌ای ندارد، دیگر از آلارم دقیق استفاده نمی‌کند (که باتری بیشتری مصرف
+     * می‌کرد) و فاصله‌اش هم از ۱۵ دقیقه به ۳۰ دقیقه رسید تا سیستم بتواند آن را
+     * با بیدارباش‌های دیگر ترکیب کند و کمتر پردازنده را بیدار کند.
      */
-    static void scheduleRestartAlarm(Context c, boolean force) {
-        long now = System.currentTimeMillis();
-        if (!force && now - lastAlarmSetAt < 10 * 60000L) return;
-        lastAlarmSetAt = now;
-
+    static void scheduleRestartAlarm(Context c) {
         AlarmManager am = c.getSystemService(AlarmManager.class);
         PendingIntent pi = PendingIntent.getBroadcast(c, 10,
                 new Intent(c, BootReceiver.class).setAction("ir.batteryalert.app.RESTART"),
                 PendingIntent.FLAG_UPDATE_CURRENT | PendingIntent.FLAG_IMMUTABLE);
-        long at = now + 15 * 60000L;
-
-        boolean canExact = true;
-        if (Build.VERSION.SDK_INT >= 31) {
-            canExact = am.canScheduleExactAlarms();
-        }
-        if (canExact) {
-            try {
-                am.setExactAndAllowWhileIdle(AlarmManager.RTC_WAKEUP, at, pi);
-                return;
-            } catch (Exception e) {
-                // ادامه به حالت جایگزین زیر
-            }
-        }
+        long at = System.currentTimeMillis() + 30 * 60000L;
         am.setAndAllowWhileIdle(AlarmManager.RTC_WAKEUP, at, pi);
     }
 

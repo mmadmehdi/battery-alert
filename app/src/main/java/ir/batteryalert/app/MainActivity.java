@@ -1,7 +1,6 @@
 package ir.batteryalert.app;
 
 import android.app.Activity;
-import android.app.AlarmManager;
 import android.content.Context;
 import android.content.Intent;
 import android.content.SharedPreferences;
@@ -94,26 +93,8 @@ public class MainActivity extends Activity {
         });
         root.addView(battery);
 
-        Button exactAlarm = new Button(this);
-        exactAlarm.setText("اجازه آلارم دقیق (پشتیبان)");
-        exactAlarm.setOnClickListener(v -> {
-            if (Build.VERSION.SDK_INT < 31) {
-                Toast.makeText(this, "روی این نسخه اندروید لازم نیست", Toast.LENGTH_SHORT).show();
-                return;
-            }
-            AlarmManager am = (AlarmManager) getSystemService(Context.ALARM_SERVICE);
-            if (am != null && am.canScheduleExactAlarms()) {
-                Toast.makeText(this, "قبلا فعال شده است", Toast.LENGTH_SHORT).show();
-                return;
-            }
-            Intent i = new Intent(Settings.ACTION_REQUEST_SCHEDULE_EXACT_ALARM);
-            i.setData(Uri.parse("package:" + getPackageName()));
-            startActivity(i);
-        });
-        root.addView(exactAlarm);
-
         TextView hint = new TextView(this);
-        hint.setText("\nدرصد باتری دیگر لحظه‌به‌لحظه و بدون تاخیر دریافت می‌شود (نه با پرسیدن دوره‌ای).\n\nتا وقتی شارژ از حد بالا (موقع شارژ) یا حد پایین رد شده باشد، هشدار طبق فاصله‌ای که تعیین کرده‌ای تکرار می‌شود.\n\nنکته مهم شیائومی: در صفحه برنامه‌های اخیر، این اپ را قفل کن تا سیستم آن را نبندد.");
+        hint.setText("\nدرصد باتری لحظه‌به‌لحظه و بدون تاخیر دریافت می‌شود.\n\nتا وقتی شارژ از حد بالا (موقع شارژ) یا حد پایین رد شده باشد، هشدار طبق فاصله‌ای که تعیین کرده‌ای تکرار می‌شود.\n\nنکته مهم شیائومی: در صفحه برنامه‌های اخیر، این اپ را قفل کن تا سیستم آن را نبندد.");
         root.addView(hint);
 
         ScrollView scroll = new ScrollView(this);

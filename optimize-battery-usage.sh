@@ -2,8 +2,8 @@
 set -e
 
 echo "=================================="
-echo "  آپدیت اپ هشدار باتری - نسخه 1.6"
-echo "  (دریافت آنی درصد باتری، بدون تاخیر)"
+echo "  آپدیت اپ هشدار باتری - نسخه 1.7"
+echo "  (بهینه‌سازی مصرف باتری - بدون دست زدن به منطق اصلی)"
 echo "=================================="
 echo ""
 
@@ -30,8 +30,8 @@ android {
         applicationId "ir.batteryalert.app"
         minSdk 26
         targetSdk 33
-        versionCode 7
-        versionName "1.6"
+        versionCode 8
+        versionName "1.7"
     }
 
     signingConfigs {
@@ -58,7 +58,7 @@ android {
 }
 EOF_APPGRADLE
 
-# --- Manifest: بدون تغییر نسبت به نسخه قبل ---
+# --- Manifest: پرمیشن آلارم دقیق دیگر لازم نیست (فقط برای پشتیبان بود) ---
 cat > app/src/main/AndroidManifest.xml << 'EOF_MANIFEST'
 <?xml version="1.0" encoding="utf-8"?>
 <manifest xmlns:android="http://schemas.android.com/apk/res/android">
@@ -66,7 +66,6 @@ cat > app/src/main/AndroidManifest.xml << 'EOF_MANIFEST'
     <uses-permission android:name="android.permission.POST_NOTIFICATIONS" />
     <uses-permission android:name="android.permission.RECEIVE_BOOT_COMPLETED" />
     <uses-permission android:name="android.permission.REQUEST_IGNORE_BATTERY_OPTIMIZATIONS" />
-    <uses-permission android:name="android.permission.SCHEDULE_EXACT_ALARM" />
     <uses-permission android:name="android.permission.USE_FULL_SCREEN_INTENT" />
     <uses-permission android:name="android.permission.FOREGROUND_SERVICE" />
     <uses-permission android:name="android.permission.FOREGROUND_SERVICE_SPECIAL_USE" />
@@ -108,7 +107,8 @@ cat > app/src/main/AndroidManifest.xml << 'EOF_MANIFEST'
 </manifest>
 EOF_MANIFEST
 
-# --- Checker.java: دیگر هیچ پولینگی نیست؛ فقط پردازش لحظه‌ای بروزرسانی باتری ---
+# --- Checker.java: فقط تابع scheduleRestartAlarm (پشتیبان) بهینه شد؛
+#     checkFromIntent و alert و status و ensureChannels عینا دست‌نخورده ماندند ---
 cat > app/src/main/java/ir/batteryalert/app/Checker.java << 'EOF_CHECKER'
 package ir.batteryalert.app;
 
@@ -123,7 +123,6 @@ import android.content.SharedPreferences;
 import android.media.AudioAttributes;
 import android.media.RingtoneManager;
 import android.os.BatteryManager;
-import android.os.Build;
 
 public class Checker {
 
@@ -154,9 +153,9 @@ public class Checker {
     }
 
     /**
-     * دیگر خودش باتری را نمی‌پرسد (آن روش کند بود). به جایش خودِ سیستم هر بار که
-     * درصد باتری حتی یک واحد عوض شود یا شارژر وصل/قطع شود، این Intent را می‌فرستد
-     * و همان لحظه اینجا پردازش می‌شود؛ یعنی دیگر هیچ تاخیری در دریافت درصد نیست.
+     * دقیقا همان روشی که الان عالی کار می‌کند: خودِ سیستم هر بار که درصد باتری
+     * حتی یک واحد عوض شود یا شارژر وصل/قطع شود، این Intent را می‌فرستد و همان
+     * لحظه اینجا پردازش می‌شود. این تابع دست‌نخورده مانده است.
      */
     static void checkFromIntent(Context c, Intent b) {
         ensureChannels(c);
@@ -193,28 +192,18 @@ public class Checker {
     }
 
     /**
-     * فقط زنگ خطر پشتیبان: اگر بنا به هر دلیلی سرویس اصلی کشته شد،
-     * حداکثر ۱۵ دقیقه بعد دوباره روشنش می‌کند تا گیرنده‌ی لحظه‌ای دوباره ثبت شود.
+     * فقط زنگ خطر پشتیبان (نه بخشی از دریافت باتری): اگر سرویس اصلی به هر دلیلی
+     * کشته شود، دوباره روشنش می‌کند. چون این فقط یک بیمه است و نیازی به دقت
+     * ثانیه‌ای ندارد، دیگر از آلارم دقیق استفاده نمی‌کند (که باتری بیشتری مصرف
+     * می‌کرد) و فاصله‌اش هم از ۱۵ دقیقه به ۳۰ دقیقه رسید تا سیستم بتواند آن را
+     * با بیدارباش‌های دیگر ترکیب کند و کمتر پردازنده را بیدار کند.
      */
     static void scheduleRestartAlarm(Context c) {
         AlarmManager am = c.getSystemService(AlarmManager.class);
         PendingIntent pi = PendingIntent.getBroadcast(c, 10,
                 new Intent(c, BootReceiver.class).setAction("ir.batteryalert.app.RESTART"),
                 PendingIntent.FLAG_UPDATE_CURRENT | PendingIntent.FLAG_IMMUTABLE);
-        long at = System.currentTimeMillis() + 15 * 60000L;
-
-        boolean canExact = true;
-        if (Build.VERSION.SDK_INT >= 31) {
-            canExact = am.canScheduleExactAlarms();
-        }
-        if (canExact) {
-            try {
-                am.setExactAndAllowWhileIdle(AlarmManager.RTC_WAKEUP, at, pi);
-                return;
-            } catch (Exception e) {
-                // ادامه به حالت جایگزین زیر
-            }
-        }
+        long at = System.currentTimeMillis() + 30 * 60000L;
         am.setAndAllowWhileIdle(AlarmManager.RTC_WAKEUP, at, pi);
     }
 
@@ -247,7 +236,7 @@ public class Checker {
 }
 EOF_CHECKER
 
-# --- BatteryService.java: به جای پرسیدن دوره‌ای، مستقیم گوش می‌دهد به تغییرات باتری ---
+# --- BatteryService.java: کاملا دست‌نخورده نسبت به نسخه قبل ---
 cat > app/src/main/java/ir/batteryalert/app/BatteryService.java << 'EOF_SERVICE'
 package ir.batteryalert.app;
 
@@ -260,10 +249,8 @@ import android.os.IBinder;
 
 /**
  * این سرویس همیشه زنده می‌ماند (همان نوتیفیکیشن کم‌اهمیت قبلی) و مستقیماً روی
- * پخش سیستمی ACTION_BATTERY_CHANGED ثبت‌نام می‌کند. اندروید این پخش را همان
- * لحظه‌ای که درصد باتری حتی یک واحد تغییر کند یا شارژر وصل/قطع شود می‌فرستد،
- * پس دیگر نیازی به "هر چند دقیقه یک بار پرسیدن" نیست و دیگر تاخیری در دریافت
- * درصد باتری وجود ندارد.
+ * پخش سیستمی ACTION_BATTERY_CHANGED ثبت‌نام می‌کند. این بخش دست‌نخورده مانده،
+ * چون همان چیزی است که الان عالی کار می‌کند.
  */
 public class BatteryService extends Service {
 
@@ -281,7 +268,6 @@ public class BatteryService extends Service {
                 Checker.checkFromIntent(BatteryService.this, intent);
             }
         };
-        // این تابع خودش بلافاصله آخرین وضعیت باتری را برمی‌گرداند (sticky broadcast)
         Intent sticky = registerReceiver(batteryReceiver, new IntentFilter(Intent.ACTION_BATTERY_CHANGED));
         Checker.checkFromIntent(this, sticky);
     }
@@ -299,7 +285,6 @@ public class BatteryService extends Service {
             } catch (Exception ignored) {
             }
         }
-        // اگر سیستم سرویس را کشت، آلارم پشتیبان دوباره روشنش می‌کند
         Checker.scheduleRestartAlarm(this);
         super.onDestroy();
     }
@@ -311,7 +296,7 @@ public class BatteryService extends Service {
 }
 EOF_SERVICE
 
-# --- BootReceiver.java: بدون تغییر، فقط سرویس را روشن می‌کند ---
+# --- BootReceiver.java: بدون تغییر ---
 cat > app/src/main/java/ir/batteryalert/app/BootReceiver.java << 'EOF_BOOT'
 package ir.batteryalert.app;
 
@@ -333,12 +318,11 @@ public class BootReceiver extends BroadcastReceiver {
 }
 EOF_BOOT
 
-# --- MainActivity.java: فیلدهای "هر چند دقیقه چک شود" حذف شدند (دیگر لازم نیستند) ---
+# --- MainActivity.java: دکمه‌ی «آلارم دقیق» که دیگر استفاده‌ای نداشت حذف شد ---
 cat > app/src/main/java/ir/batteryalert/app/MainActivity.java << 'EOF_MAIN'
 package ir.batteryalert.app;
 
 import android.app.Activity;
-import android.app.AlarmManager;
 import android.content.Context;
 import android.content.Intent;
 import android.content.SharedPreferences;
@@ -431,26 +415,8 @@ public class MainActivity extends Activity {
         });
         root.addView(battery);
 
-        Button exactAlarm = new Button(this);
-        exactAlarm.setText("اجازه آلارم دقیق (پشتیبان)");
-        exactAlarm.setOnClickListener(v -> {
-            if (Build.VERSION.SDK_INT < 31) {
-                Toast.makeText(this, "روی این نسخه اندروید لازم نیست", Toast.LENGTH_SHORT).show();
-                return;
-            }
-            AlarmManager am = (AlarmManager) getSystemService(Context.ALARM_SERVICE);
-            if (am != null && am.canScheduleExactAlarms()) {
-                Toast.makeText(this, "قبلا فعال شده است", Toast.LENGTH_SHORT).show();
-                return;
-            }
-            Intent i = new Intent(Settings.ACTION_REQUEST_SCHEDULE_EXACT_ALARM);
-            i.setData(Uri.parse("package:" + getPackageName()));
-            startActivity(i);
-        });
-        root.addView(exactAlarm);
-
         TextView hint = new TextView(this);
-        hint.setText("\nدرصد باتری دیگر لحظه‌به‌لحظه و بدون تاخیر دریافت می‌شود (نه با پرسیدن دوره‌ای).\n\nتا وقتی شارژ از حد بالا (موقع شارژ) یا حد پایین رد شده باشد، هشدار طبق فاصله‌ای که تعیین کرده‌ای تکرار می‌شود.\n\nنکته مهم شیائومی: در صفحه برنامه‌های اخیر، این اپ را قفل کن تا سیستم آن را نبندد.");
+        hint.setText("\nدرصد باتری لحظه‌به‌لحظه و بدون تاخیر دریافت می‌شود.\n\nتا وقتی شارژ از حد بالا (موقع شارژ) یا حد پایین رد شده باشد، هشدار طبق فاصله‌ای که تعیین کرده‌ای تکرار می‌شود.\n\nنکته مهم شیائومی: در صفحه برنامه‌های اخیر، این اپ را قفل کن تا سیستم آن را نبندد.");
         root.addView(hint);
 
         ScrollView scroll = new ScrollView(this);
@@ -508,4 +474,30 @@ public class MainActivity extends Activity {
 }
 EOF_MAIN
 
-echo "ok"
+echo "در حال ارسال به گیت‌هاب..."
+git add -A
+git commit -m "نسخه 1.7 - بهینه‌سازی مصرف باتری (حذف آلارم دقیق پشتیبان اضافی و دکمه بلااستفاده‌اش)؛ منطق دریافت باتری دست‌نخورده"
+git push origin main
+
+echo ""
+echo "=================================="
+echo "  تمام شد!"
+echo "=================================="
+echo ""
+echo "چیزی که در این نسخه تغییر کرد فقط «زنگ پشتیبان» بود، نه روش دریافت باتری:"
+echo ""
+echo "- قبلا هر ۱۵ دقیقه یک آلارم دقیق (که پردازنده را کامل بیدار می‌کند) می‌زد."
+echo "  الان هر ۳۰ دقیقه و به‌صورت غیردقیق می‌زند، یعنی سیستم می‌تواند آن را با"
+echo "  کارهای دیگر ترکیب کند و کمتر باتری مصرف شود."
+echo "- پرمیشن و دکمه‌ی «آلارم دقیق» که دیگر لازم نبود حذف شد."
+echo "- خودِ متد checkFromIntent (که آلارم و درصد باتری را می‌گیرد و هشدار می‌دهد)"
+echo "  و ثبت‌نام روی ACTION_BATTERY_CHANGED در BatteryService عینا دست‌نخورده ماندند."
+echo ""
+echo "۱) صبر کن تیک سبز بیاید:"
+echo "   https://github.com/mmadmehdi/battery-alert/actions"
+echo ""
+echo "۲) جدیدترین نسخه (بالاترین شماره) را دانلود کن:"
+echo "   https://github.com/mmadmehdi/battery-alert/releases"
+echo ""
+echo "۳) اپ قبلی را حذف کن، نسخه جدید را نصب کن و دکمه اجرای دائمی در پس‌زمینه را بزن."
+echo ""

@@ -43,7 +43,8 @@ public class Checker {
     /**
      * دقیقا همان روشی که الان عالی کار می‌کند: خودِ سیستم هر بار که درصد باتری
      * حتی یک واحد عوض شود یا شارژر وصل/قطع شود، این Intent را می‌فرستد و همان
-     * لحظه اینجا پردازش می‌شود. این تابع دست‌نخورده مانده است.
+     * لحظه اینجا پردازش می‌شود. منطق شارژ بالا/پایین دقیقا همان قبلی است؛
+     * فقط بخش دمای باتری (جدا و اضافه) به انتهای تابع افزوده شده.
      */
     static void checkFromIntent(Context c, Intent b) {
         ensureChannels(c);
@@ -72,19 +73,38 @@ public class Checker {
             p.edit().putLong("lastHigh", 0).putLong("lastLow", 0).apply();
         }
 
+        // --- بخش جدید: دمای باتری (جدا از منطق بالا، چیزی از آن تغییر نکرد) ---
+        int tempTenths = b.getIntExtra(BatteryManager.EXTRA_TEMPERATURE, Integer.MIN_VALUE);
+        String tempText = "";
+        if (tempTenths != Integer.MIN_VALUE) {
+            double tempC = tempTenths / 10.0;
+            tempText = "  |  دما: " + formatTemp(tempC) + "°C";
+
+            int tempHigh = p.getInt("tempHigh", 45);
+            if (tempC >= tempHigh) {
+                if (now - p.getLong("lastTemp", 0) > p.getInt("repTemp", 5) * 60000L) {
+                    p.edit().putLong("lastTemp", now).apply();
+                    alert(c, 4, "دمای باتری بالا رفت", "دما به " + formatTemp(tempC) + "°C رسید");
+                }
+            } else {
+                p.edit().putLong("lastTemp", 0).apply();
+            }
+        }
+
         c.getSystemService(NotificationManager.class).notify(1, status(c,
-                "باتری: " + percent + "٪  |  هشدار در: "
+                "باتری: " + percent + "٪" + tempText + "  |  هشدار در: "
                 + p.getInt("high", 80) + "٪ و " + p.getInt("low", 20) + "٪"));
 
         scheduleRestartAlarm(c);
     }
 
+    private static String formatTemp(double tempC) {
+        return String.valueOf(Math.round(tempC * 10.0) / 10.0);
+    }
+
     /**
      * فقط زنگ خطر پشتیبان (نه بخشی از دریافت باتری): اگر سرویس اصلی به هر دلیلی
-     * کشته شود، دوباره روشنش می‌کند. چون این فقط یک بیمه است و نیازی به دقت
-     * ثانیه‌ای ندارد، دیگر از آلارم دقیق استفاده نمی‌کند (که باتری بیشتری مصرف
-     * می‌کرد) و فاصله‌اش هم از ۱۵ دقیقه به ۳۰ دقیقه رسید تا سیستم بتواند آن را
-     * با بیدارباش‌های دیگر ترکیب کند و کمتر پردازنده را بیدار کند.
+     * کشته شود، دوباره روشنش می‌کند. غیردقیق و هر ۳۰ دقیقه، همانند نسخه قبل.
      */
     static void scheduleRestartAlarm(Context c) {
         AlarmManager am = c.getSystemService(AlarmManager.class);

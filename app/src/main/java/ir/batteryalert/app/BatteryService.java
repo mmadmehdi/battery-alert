@@ -7,11 +7,6 @@ import android.content.Intent;
 import android.content.IntentFilter;
 import android.os.IBinder;
 
-/**
- * این سرویس همیشه زنده می‌ماند (همان نوتیفیکیشن کم‌اهمیت قبلی) و مستقیماً روی
- * پخش سیستمی ACTION_BATTERY_CHANGED ثبت‌نام می‌کند. این بخش دست‌نخورده مانده،
- * چون همان چیزی است که الان عالی کار می‌کند.
- */
 public class BatteryService extends Service {
 
     private BroadcastReceiver batteryReceiver;

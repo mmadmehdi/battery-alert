@@ -12,6 +12,11 @@ import android.media.AudioAttributes;
 import android.media.RingtoneManager;
 import android.os.BatteryManager;
 
+import org.json.JSONArray;
+import org.json.JSONObject;
+
+import java.util.Calendar;
+
 public class Checker {
 
     static final String CH_STATUS = "status";
@@ -42,8 +47,9 @@ public class Checker {
 
     /**
      * منطق اصلی (آستانه‌ها، تکرار، محاسبه درصد و دما) دقیقا مثل قبل است.
-     * تنها تغییر: هر کدام از سه هشدار (شارژ بالا / شارژ پایین / دما) پشت یک
-     * سوییچ کاملا مستقل قرار گرفته و روشن/خاموش بودنش تاثیری روی بقیه ندارد.
+     * تنها تغییر نسبت به نسخه قبل: هر سه سوییچ حالا علاوه بر روشن/خاموش بودن
+     * خودشان، چک می‌کنند که الان داخل یک «بازه سکوت» تعریف‌شده توسط کاربر
+     * نیستند. این چک کاملا جدا و اضافه است.
      */
     static void checkFromIntent(Context c, Intent b) {
         ensureChannels(c);
@@ -58,8 +64,8 @@ public class Checker {
         SharedPreferences p = c.getSharedPreferences("settings", Context.MODE_PRIVATE);
         long now = System.currentTimeMillis();
 
-        boolean enableHigh = p.getBoolean("enableHigh", true);
-        boolean enableLow = p.getBoolean("enableLow", true);
+        boolean enableHigh = p.getBoolean("enableHigh", true) && !isSuppressed(c, true);
+        boolean enableLow = p.getBoolean("enableLow", true) && !isSuppressed(c, true);
 
         if (enableHigh && charging && percent >= p.getInt("high", 80)) {
             if (now - p.getLong("lastHigh", 0) > p.getInt("repHigh", 5) * 60000L) {
@@ -75,14 +81,14 @@ public class Checker {
             p.edit().putLong("lastHigh", 0).putLong("lastLow", 0).apply();
         }
 
-        // --- بخش دما: سوییچ خودش + سوییچ جداگانه برای «در حالت شارژ هم فعال باشد یا نه» ---
+        // --- بخش دما: همان دو سوییچ قبلی + همین چک بازه سکوت ---
         int tempTenths = b.getIntExtra(BatteryManager.EXTRA_TEMPERATURE, Integer.MIN_VALUE);
         String tempText = "";
         if (tempTenths != Integer.MIN_VALUE) {
             double tempC = tempTenths / 10.0;
             tempText = "  |  دما: " + formatTemp(tempC) + "°C";
 
-            boolean enableTemp = p.getBoolean("enableTemp", true);
+            boolean enableTemp = p.getBoolean("enableTemp", true) && !isSuppressed(c, false);
             boolean tempWhileCharging = p.getBoolean("tempWhileCharging", true);
             boolean tempActiveNow = enableTemp && (!charging || tempWhileCharging);
 
@@ -102,6 +108,31 @@ public class Checker {
                 + p.getInt("high", 80) + "٪ و " + p.getInt("low", 20) + "٪"));
 
         scheduleRestartAlarm(c);
+    }
+
+    /**
+     * آیا الان داخل یکی از بازه‌های سکوتی هستیم که کاربر برای این نوع هشدار
+     * (باتری یا دما) تعریف کرده؟ بازه‌ها در تنظیمات به صورت JSON ذخیره می‌شوند.
+     */
+    static boolean isSuppressed(Context c, boolean forBattery) {
+        SharedPreferences p = c.getSharedPreferences("settings", Context.MODE_PRIVATE);
+        String json = p.getString("quietPeriods", "[]");
+        try {
+            JSONArray arr = new JSONArray(json);
+            Calendar cal = Calendar.getInstance();
+            int nowMin = cal.get(Calendar.HOUR_OF_DAY) * 60 + cal.get(Calendar.MINUTE);
+            for (int i = 0; i < arr.length(); i++) {
+                JSONObject o = arr.getJSONObject(i);
+                boolean matches = forBattery ? o.optBoolean("b", false) : o.optBoolean("t", false);
+                if (!matches) continue;
+                int s = o.optInt("s", 0);
+                int e = o.optInt("e", 0);
+                boolean inRange = (s <= e) ? (nowMin >= s && nowMin < e) : (nowMin >= s || nowMin < e);
+                if (inRange) return true;
+            }
+        } catch (Exception ignored) {
+        }
+        return false;
     }
 
     private static String formatTemp(double tempC) {

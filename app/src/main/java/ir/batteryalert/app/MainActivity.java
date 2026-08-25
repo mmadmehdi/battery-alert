@@ -13,6 +13,7 @@ import android.provider.Settings;
 import android.text.InputType;
 import android.view.View;
 import android.widget.Button;
+import android.widget.CheckBox;
 import android.widget.EditText;
 import android.widget.LinearLayout;
 import android.widget.ScrollView;
@@ -21,6 +22,7 @@ import android.widget.Toast;
 
 public class MainActivity extends Activity {
 
+    private CheckBox enableHighBox, enableLowBox, enableTempBox, tempWhileChargingBox;
     private EditText highInput, lowInput;
     private EditText repHighInput, repLowInput;
     private EditText tempHighInput, repTempInput;
@@ -42,8 +44,14 @@ public class MainActivity extends Activity {
         title.setTextSize(24);
         root.addView(title);
 
-        highInput = addField(root, "\nهشدار شارژ بالا (درصد) — موقع شارژ شدن:", prefs.getInt("high", 80));
+        enableHighBox = addCheck(root, "\nهشدار شارژ بالا فعال باشد", prefs.getBoolean("enableHigh", true));
+        highInput = addField(root, "هشدار شارژ بالا (درصد) — موقع شارژ شدن:", prefs.getInt("high", 80));
+
+        enableLowBox = addCheck(root, "\nهشدار شارژ پایین فعال باشد", prefs.getBoolean("enableLow", true));
         lowInput = addField(root, "هشدار شارژ پایین (درصد) — موقع خالی شدن:", prefs.getInt("low", 20));
+
+        enableTempBox = addCheck(root, "\nهشدار دمای باتری فعال باشد", prefs.getBoolean("enableTemp", true));
+        tempWhileChargingBox = addCheck(root, "هشدار دما در حالت شارژ هم فعال باشد", prefs.getBoolean("tempWhileCharging", true));
         tempHighInput = addField(root, "هشدار دمای باتری (سانتی‌گراد):", prefs.getInt("tempHigh", 45));
 
         Button settingsBtn = new Button(this);
@@ -73,6 +81,10 @@ public class MainActivity extends Activity {
             }
             int tempHigh = clamp(parseOr(tempHighInput, 45), 30, 60);
             prefs.edit()
+                    .putBoolean("enableHigh", enableHighBox.isChecked())
+                    .putBoolean("enableLow", enableLowBox.isChecked())
+                    .putBoolean("enableTemp", enableTempBox.isChecked())
+                    .putBoolean("tempWhileCharging", tempWhileChargingBox.isChecked())
                     .putInt("high", high)
                     .putInt("low", low)
                     .putInt("tempHigh", tempHigh)
@@ -100,7 +112,7 @@ public class MainActivity extends Activity {
         root.addView(battery);
 
         TextView hint = new TextView(this);
-        hint.setText("\nدرصد و دمای باتری لحظه‌به‌لحظه و بدون تاخیر دریافت می‌شود.\n\nحد پیش‌فرض دما ۴۵ درجه سانتی‌گراد است؛ زیر این عدد برای سلامت باتری در درازمدت مشکلی ندارد و بالاتر رفتن مداوم از آن می‌تواند به عمر باتری آسیب بزند.\n\nتا وقتی شارژ یا دما از حد تعیین‌شده رد شده باشد، هشدار طبق فاصله‌ای که تعیین کرده‌ای تکرار می‌شود.\n\nنکته مهم شیائومی: در صفحه برنامه‌های اخیر، این اپ را قفل کن تا سیستم آن را نبندد.");
+        hint.setText("\nهر سه هشدار (شارژ بالا، شارژ پایین، دما) کاملا مستقل از هم روشن یا خاموش می‌شوند. خاموش کردن یکی، تاثیری روی بقیه ندارد.\n\nحد پیش‌فرض دما ۴۵ درجه سانتی‌گراد است.\n\nنکته مهم شیائومی: در صفحه برنامه‌های اخیر، این اپ را قفل کن تا سیستم آن را نبندد.");
         root.addView(hint);
 
         ScrollView scroll = new ScrollView(this);
@@ -129,6 +141,14 @@ public class MainActivity extends Activity {
         } else {
             startService(i);
         }
+    }
+
+    private CheckBox addCheck(LinearLayout parent, String label, boolean value) {
+        CheckBox cb = new CheckBox(this);
+        cb.setText(label);
+        cb.setChecked(value);
+        parent.addView(cb);
+        return cb;
     }
 
     private EditText addField(LinearLayout parent, String label, int value) {

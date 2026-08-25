@@ -41,10 +41,9 @@ public class Checker {
     }
 
     /**
-     * دقیقا همان روشی که الان عالی کار می‌کند: خودِ سیستم هر بار که درصد باتری
-     * حتی یک واحد عوض شود یا شارژر وصل/قطع شود، این Intent را می‌فرستد و همان
-     * لحظه اینجا پردازش می‌شود. منطق شارژ بالا/پایین دقیقا همان قبلی است؛
-     * فقط بخش دمای باتری (جدا و اضافه) به انتهای تابع افزوده شده.
+     * منطق اصلی (آستانه‌ها، تکرار، محاسبه درصد و دما) دقیقا مثل قبل است.
+     * تنها تغییر: هر کدام از سه هشدار (شارژ بالا / شارژ پایین / دما) پشت یک
+     * سوییچ کاملا مستقل قرار گرفته و روشن/خاموش بودنش تاثیری روی بقیه ندارد.
      */
     static void checkFromIntent(Context c, Intent b) {
         ensureChannels(c);
@@ -59,12 +58,15 @@ public class Checker {
         SharedPreferences p = c.getSharedPreferences("settings", Context.MODE_PRIVATE);
         long now = System.currentTimeMillis();
 
-        if (charging && percent >= p.getInt("high", 80)) {
+        boolean enableHigh = p.getBoolean("enableHigh", true);
+        boolean enableLow = p.getBoolean("enableLow", true);
+
+        if (enableHigh && charging && percent >= p.getInt("high", 80)) {
             if (now - p.getLong("lastHigh", 0) > p.getInt("repHigh", 5) * 60000L) {
                 p.edit().putLong("lastHigh", now).putLong("lastLow", 0).apply();
                 alert(c, 2, "شارژر را جدا کن", "باتری به " + percent + "٪ رسید");
             }
-        } else if (!charging && percent <= p.getInt("low", 20)) {
+        } else if (enableLow && !charging && percent <= p.getInt("low", 20)) {
             if (now - p.getLong("lastLow", 0) > p.getInt("repLow", 10) * 60000L) {
                 p.edit().putLong("lastLow", now).putLong("lastHigh", 0).apply();
                 alert(c, 3, "گوشی را به شارژ بزن", "باتری فقط " + percent + "٪ است");
@@ -73,20 +75,24 @@ public class Checker {
             p.edit().putLong("lastHigh", 0).putLong("lastLow", 0).apply();
         }
 
-        // --- بخش جدید: دمای باتری (جدا از منطق بالا، چیزی از آن تغییر نکرد) ---
+        // --- بخش دما: سوییچ خودش + سوییچ جداگانه برای «در حالت شارژ هم فعال باشد یا نه» ---
         int tempTenths = b.getIntExtra(BatteryManager.EXTRA_TEMPERATURE, Integer.MIN_VALUE);
         String tempText = "";
         if (tempTenths != Integer.MIN_VALUE) {
             double tempC = tempTenths / 10.0;
             tempText = "  |  دما: " + formatTemp(tempC) + "°C";
 
+            boolean enableTemp = p.getBoolean("enableTemp", true);
+            boolean tempWhileCharging = p.getBoolean("tempWhileCharging", true);
+            boolean tempActiveNow = enableTemp && (!charging || tempWhileCharging);
+
             int tempHigh = p.getInt("tempHigh", 45);
-            if (tempC >= tempHigh) {
+            if (tempActiveNow && tempC >= tempHigh) {
                 if (now - p.getLong("lastTemp", 0) > p.getInt("repTemp", 5) * 60000L) {
                     p.edit().putLong("lastTemp", now).apply();
                     alert(c, 4, "دمای باتری بالا رفت", "دما به " + formatTemp(tempC) + "°C رسید");
                 }
-            } else {
+            } else if (!tempActiveNow || tempC < tempHigh) {
                 p.edit().putLong("lastTemp", 0).apply();
             }
         }

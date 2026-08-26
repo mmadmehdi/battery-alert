@@ -1,0 +1,94 @@
+#!/bin/bash
+# Fixes the remaining files
+
+rm -f README.md
+
+cat > README.md << 'RDMEOF'
+Battery Alert
+=============
+
+Simple battery monitoring tool for Windows with notifications.
+
+Features
+--------
+- Real-time battery monitoring
+- Low battery alert (notification + beep)
+- Full battery alert (notification + beep)
+- Visual progress bar display
+- Easy configuration
+
+Quick Start
+-----------
+Requirements: Windows 10 / 11 - nothing else needed!
+
+Just double-click on start.bat
+
+Or run from PowerShell with custom settings:
+
+    .\src\battery_alert.ps1 -LowThreshold 20 -FullThreshold 95 -CheckInterval 60
+
+Configuration
+-------------
+Edit config.ini:
+
+    [settings]
+    low_threshold = 20
+    full_threshold = 95
+    check_interval = 60
+
+Project Structure
+-----------------
+    battery-alert/
+    |-- start.bat          <- double-click this!
+    |-- config.ini         <- settings
+    |-- src/
+    |   +-- battery_alert.ps1
+    +-- README.md
+
+License
+-------
+MIT License
+RDMEOF
+echo "📝 Created README.md"
+
+cat > LICENSE << 'LICEOF'
+MIT License
+
+Copyright (c) 2024 mmadmehdi
+
+Permission is hereby granted, free of charge, to any person obtaining a copy
+of this software and associated documentation files (the "Software"), to deal
+in the Software without restriction, including without limitation the rights
+to use, copy, modify, merge, publish, distribute, sublicense, and/or sell
+copies of the Software, and to permit persons to whom the Software is
+furnished to do so, subject to the following conditions:
+
+The above copyright notice and this permission notice shall be included in all
+copies or substantial portions of the Software.
+
+THE SOFTWARE IS PROVIDED "AS IS", WITHOUT WARRANTY OF ANY KIND, EXPRESS OR
+IMPLIED, INCLUDING BUT NOT LIMITED TO THE WARRANTIES OF MERCHANTABILITY,
+FITNESS FOR A PARTICULAR PURPOSE AND NONINFRINGEMENT. IN NO EVENT SHALL THE
+AUTHORS OR COPYRIGHT HOLDERS BE LIABLE FOR ANY CLAIM, DAMAGES OR OTHER
+LIABILITY, WHETHER IN AN ACTION OF CONTRACT, TORT OR OTHERWISE, ARISING FROM,
+OUT OF OR IN CONNECTION WITH THE SOFTWARE OR THE USE OR OTHER DEALINGS IN THE
+SOFTWARE.
+LICEOF
+echo "📝 Created LICENSE"
+
+cat > .gitignore << 'GITEOF'
+*.tmp
+*.log
+*.bak
+Thumbs.db
+.DS_Store
+.vscode/
+.idea/
+GITEOF
+echo "📝 Created .gitignore"
+
+echo ""
+echo "✅ All done! Now push:"
+echo "   git add ."
+echo "   git commit -m 'Windows version'"
+echo "   git push origin main"

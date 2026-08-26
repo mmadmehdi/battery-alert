@@ -1,2 +1,7 @@
-build/
-.gradle/
+*.tmp
+*.log
+*.bak
+Thumbs.db
+.DS_Store
+.vscode/
+.idea/

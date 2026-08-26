@@ -1,4 +1,5 @@
 using System.Collections.Generic;
+using System.Media;
 using System.Windows.Forms;
 
 namespace BatteryAlert
@@ -13,11 +14,14 @@ namespace BatteryAlert
         private readonly List<QuietPeriod> _quietPeriods;
         private Button _testTempBtn;
         private Label _testTempResult;
+        private Label _soundPathLabel;
+        private string _soundPath;
 
         public SettingsForm(Settings current)
         {
             Result = Clone(current);
             _quietPeriods = new List<QuietPeriod>(current.QuietPeriods);
+            _soundPath = current.SoundPath;
 
             Text = "تنظیمات هشدار باتری";
             RightToLeft = RightToLeft.Yes;
@@ -63,7 +67,57 @@ namespace BatteryAlert
             Controls.Add(_testTempBtn);
             Controls.Add(_testTempResult);
 
-            var quietLabel = new Label { Text = "بازه‌های سکوت:", Left = 12, Top = _testTempBtn.Bottom + 12, AutoSize = true };
+            // --- بخش جدید: صدای هشدار ---
+            var soundTitle = new Label { Text = "صدای هشدار:", Left = 12, Top = _testTempBtn.Bottom + 14, AutoSize = true };
+            Controls.Add(soundTitle);
+
+            _soundPathLabel = new Label
+            {
+                Left = 12,
+                Top = soundTitle.Bottom + 4,
+                Width = 440,
+                AutoSize = false,
+                Height = 20,
+                Text = string.IsNullOrEmpty(_soundPath) ? "صدای پیش‌فرض ویندوز" : _soundPath
+            };
+            Controls.Add(_soundPathLabel);
+
+            var chooseSoundBtn = new Button { Text = "انتخاب فایل صدا (wav)", Left = 12, Top = _soundPathLabel.Bottom + 6, Width = 160 };
+            chooseSoundBtn.Click += (s, e) =>
+            {
+                using var dlg = new OpenFileDialog { Filter = "فایل صوتی (*.wav)|*.wav" };
+                if (dlg.ShowDialog() == DialogResult.OK)
+                {
+                    _soundPath = dlg.FileName;
+                    _soundPathLabel.Text = _soundPath;
+                }
+            };
+            Controls.Add(chooseSoundBtn);
+
+            var testSoundBtn = new Button { Text = "پخش آزمایشی", Left = 180, Top = _soundPathLabel.Bottom + 6, Width = 110 };
+            testSoundBtn.Click += (s, e) =>
+            {
+                if (!string.IsNullOrEmpty(_soundPath) && System.IO.File.Exists(_soundPath))
+                {
+                    try { new SoundPlayer(_soundPath).Play(); }
+                    catch { MessageBox.Show("پخش این فایل ممکن نشد.", "خطا"); }
+                }
+                else
+                {
+                    SystemSounds.Exclamation.Play();
+                }
+            };
+            Controls.Add(testSoundBtn);
+
+            var clearSoundBtn = new Button { Text = "بازگشت به صدای پیش‌فرض", Left = 300, Top = _soundPathLabel.Bottom + 6, Width = 150 };
+            clearSoundBtn.Click += (s, e) =>
+            {
+                _soundPath = "";
+                _soundPathLabel.Text = "صدای پیش‌فرض ویندوز";
+            };
+            Controls.Add(clearSoundBtn);
+
+            var quietLabel = new Label { Text = "بازه‌های سکوت:", Left = 12, Top = clearSoundBtn.Bottom + 14, AutoSize = true };
             Controls.Add(quietLabel);
 
             _quietList = new ListBox { Left = 12, Top = quietLabel.Bottom + 4, Width = 440, Height = 110 };
@@ -203,6 +257,7 @@ namespace BatteryAlert
             Result.RepLowMinutes = (int)_repLow.Value;
             Result.RepTempMinutes = (int)_repTemp.Value;
             Result.RunAtStartup = _runAtStartup.Checked;
+            Result.SoundPath = _soundPath;
             Result.QuietPeriods = _quietPeriods;
         }
 
@@ -219,6 +274,7 @@ namespace BatteryAlert
             RepLowMinutes = s.RepLowMinutes,
             RepTempMinutes = s.RepTempMinutes,
             RunAtStartup = s.RunAtStartup,
+            SoundPath = s.SoundPath,
             QuietPeriods = new List<QuietPeriod>(s.QuietPeriods)
         };
     }

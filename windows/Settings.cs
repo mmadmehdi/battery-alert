@@ -15,8 +15,6 @@ namespace BatteryAlert
         public bool EnableHigh { get; set; } = true;
         public bool EnableLow { get; set; } = true;
 
-        // دمای باتری روی ویندوز یک قابلیت رسمی و مطمئن نیست (توضیح کامل در پیام)،
-        // برای همین پیش‌فرض خاموش است تا کاربر خودش با دکمه‌ی تست امتحانش کند.
         public bool EnableTemp { get; set; } = false;
         public bool TempWhileCharging { get; set; } = true;
 
@@ -29,6 +27,9 @@ namespace BatteryAlert
         public int RepTempMinutes { get; set; } = 5;
 
         public bool RunAtStartup { get; set; } = false;
+
+        // مسیر فایل صدای دلخواه (wav). اگر خالی باشد، صدای پیش‌فرض ویندوز پخش می‌شود.
+        public string SoundPath { get; set; } = "";
 
         public List<QuietPeriod> QuietPeriods { get; set; } = new List<QuietPeriod>();
     }

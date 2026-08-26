@@ -1,5 +1,6 @@
 using System;
 using System.Drawing;
+using System.IO;
 using System.Media;
 using System.Windows.Forms;
 using Microsoft.Win32;
@@ -12,11 +13,13 @@ namespace BatteryAlert
         private readonly Timer _timer;
         private readonly BatteryMonitor _monitor;
         private Settings _settings;
+        private SoundPlayer _customSound;
 
         public TrayApp()
         {
             _settings = SettingsStore.Load();
             StartupManager.Apply(_settings.RunAtStartup);
+            LoadCustomSound();
 
             _tray = new NotifyIcon
             {
@@ -33,18 +36,31 @@ namespace BatteryAlert
 
             _monitor = new BatteryMonitor(_settings, ShowAlert, UpdateStatus);
 
-            // این بخش معادل ثبت‌نام لحظه‌ای اندروید است: هر بار وضعیت برق سیستم
-            // (وصل/قطع شارژر، خواب/بیداری) تغییر کند، بلافاصله چک می‌کند.
             SystemEvents.PowerModeChanged += OnPowerModeChanged;
 
-            // چون ویندوز برخلاف اندروید، پخش رسمی «هر تغییر ۱ درصدی» ندارد، این تایمر
-            // به‌عنوان تضمین اضافه، هر ۳۰ ثانیه هم چک می‌کند (روی سیستم رومیزی این
-            // فاصله عملا بی‌اهمیت و کاملا سبک است).
             _timer = new Timer { Interval = 30000 };
             _timer.Tick += (s, e) => _monitor.Check();
             _timer.Start();
 
             _monitor.Check();
+        }
+
+        private void LoadCustomSound()
+        {
+            _customSound?.Dispose();
+            _customSound = null;
+            if (!string.IsNullOrEmpty(_settings.SoundPath) && File.Exists(_settings.SoundPath))
+            {
+                try
+                {
+                    _customSound = new SoundPlayer(_settings.SoundPath);
+                    _customSound.Load();
+                }
+                catch
+                {
+                    _customSound = null;
+                }
+            }
         }
 
         private void OnPowerModeChanged(object sender, PowerModeChangedEventArgs e) => _monitor.Check();
@@ -55,6 +71,19 @@ namespace BatteryAlert
             _tray.BalloonTipText = text;
             _tray.BalloonTipIcon = ToolTipIcon.Warning;
             _tray.ShowBalloonTip(8000);
+
+            if (_customSound != null)
+            {
+                try
+                {
+                    _customSound.Play();
+                    return;
+                }
+                catch
+                {
+                    // اگر پخش فایل دلخواه با خطا مواجه شد، به صدای پیش‌فرض برمی‌گردیم
+                }
+            }
             SystemSounds.Exclamation.Play();
         }
 
@@ -72,6 +101,7 @@ namespace BatteryAlert
                 SettingsStore.Save(_settings);
                 _monitor.UpdateSettings(_settings);
                 StartupManager.Apply(_settings.RunAtStartup);
+                LoadCustomSound();
                 _monitor.Check();
             }
         }
@@ -79,6 +109,7 @@ namespace BatteryAlert
         private void ExitApp()
         {
             SystemEvents.PowerModeChanged -= OnPowerModeChanged;
+            _customSound?.Dispose();
             _tray.Visible = false;
             Application.Exit();
         }

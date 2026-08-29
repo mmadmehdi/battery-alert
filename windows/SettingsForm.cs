@@ -8,8 +8,8 @@ namespace BatteryAlert
     {
         public Settings Result { get; private set; }
 
-        private CheckBox _enableHigh, _enableLow, _enableTemp, _tempWhileCharging, _runAtStartup;
-        private NumericUpDown _high, _low, _tempHigh, _repHigh, _repLow, _repTemp;
+        private CheckBox _enableHigh, _enableLow, _enableTemp, _tempWhileCharging, _runAtStartup, _wakeFromSleep;
+        private NumericUpDown _high, _low, _tempHigh, _repHigh, _repLow, _repTemp, _wakeInterval;
         private ListBox _quietList;
         private readonly List<QuietPeriod> _quietPeriods;
         private Button _testTempBtn;
@@ -45,7 +45,7 @@ namespace BatteryAlert
             _enableLow = AddCheck(layout, "هشدار شارژ پایین فعال باشد", current.EnableLow);
             _low = AddNumeric(layout, "هشدار شارژ پایین (٪)", current.Low, 0, 99);
 
-            _enableTemp = AddCheck(layout, "هشدار دمای باتری فعال باشد (تجربی)", current.EnableTemp);
+            _enableTemp = AddCheck(layout, "هشدار دمای باتری فعال باشد (تجربی، شاید نیاز به اجرا با دسترسی ادمین داشته باشد)", current.EnableTemp);
             _tempWhileCharging = AddCheck(layout, "هشدار دما در حالت شارژ هم فعال باشد", current.TempWhileCharging);
             _tempHigh = AddNumeric(layout, "هشدار دما (سانتی‌گراد)", current.TempHigh, 30, 90);
 
@@ -54,6 +54,9 @@ namespace BatteryAlert
             _repTemp = AddNumeric(layout, "تکرار هشدار دما (دقیقه)", current.RepTempMinutes, 1, 60);
 
             _runAtStartup = AddCheck(layout, "اجرای خودکار هنگام روشن شدن ویندوز", current.RunAtStartup);
+
+            _wakeFromSleep = AddCheck(layout, "در حالت خواب هم سیستم بیدار شود و باتری چک شود", current.WakeFromSleep);
+            _wakeInterval = AddNumeric(layout, "فاصله‌ی بیدار شدن در خواب (دقیقه)", current.WakeIntervalMinutes, 5, 60);
 
             Controls.Add(layout);
 
@@ -67,7 +70,6 @@ namespace BatteryAlert
             Controls.Add(_testTempBtn);
             Controls.Add(_testTempResult);
 
-            // --- بخش جدید: صدای هشدار ---
             var soundTitle = new Label { Text = "صدای هشدار:", Left = 12, Top = _testTempBtn.Bottom + 14, AutoSize = true };
             Controls.Add(soundTitle);
 
@@ -76,7 +78,6 @@ namespace BatteryAlert
                 Left = 12,
                 Top = soundTitle.Bottom + 4,
                 Width = 440,
-                AutoSize = false,
                 Height = 20,
                 Text = string.IsNullOrEmpty(_soundPath) ? "صدای پیش‌فرض ویندوز" : _soundPath
             };
@@ -258,6 +259,8 @@ namespace BatteryAlert
             Result.RepTempMinutes = (int)_repTemp.Value;
             Result.RunAtStartup = _runAtStartup.Checked;
             Result.SoundPath = _soundPath;
+            Result.WakeFromSleep = _wakeFromSleep.Checked;
+            Result.WakeIntervalMinutes = (int)_wakeInterval.Value;
             Result.QuietPeriods = _quietPeriods;
         }
 
@@ -275,6 +278,8 @@ namespace BatteryAlert
             RepTempMinutes = s.RepTempMinutes,
             RunAtStartup = s.RunAtStartup,
             SoundPath = s.SoundPath,
+            WakeFromSleep = s.WakeFromSleep,
+            WakeIntervalMinutes = s.WakeIntervalMinutes,
             QuietPeriods = new List<QuietPeriod>(s.QuietPeriods)
         };
     }

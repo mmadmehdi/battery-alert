@@ -19,6 +19,7 @@ namespace BatteryAlert
         {
             _settings = SettingsStore.Load();
             StartupManager.Apply(_settings.RunAtStartup);
+            TaskSchedulerManager.Apply(_settings.WakeFromSleep, _settings.WakeIntervalMinutes);
             LoadCustomSound();
 
             _tray = new NotifyIcon
@@ -81,7 +82,6 @@ namespace BatteryAlert
                 }
                 catch
                 {
-                    // اگر پخش فایل دلخواه با خطا مواجه شد، به صدای پیش‌فرض برمی‌گردیم
                 }
             }
             SystemSounds.Exclamation.Play();
@@ -102,6 +102,15 @@ namespace BatteryAlert
                 _monitor.UpdateSettings(_settings);
                 StartupManager.Apply(_settings.RunAtStartup);
                 LoadCustomSound();
+
+                bool taskOk = TaskSchedulerManager.Apply(_settings.WakeFromSleep, _settings.WakeIntervalMinutes);
+                if (_settings.WakeFromSleep && !taskOk)
+                {
+                    MessageBox.Show(
+                        "ساختن تسک بیدارباش ویندوز ممکن نشد (شاید سیستم تو محدودیت سازمانی روی Task Scheduler دارد). بقیه بخش‌های برنامه سالم کار می‌کنند.",
+                        "هشدار");
+                }
+
                 _monitor.Check();
             }
         }

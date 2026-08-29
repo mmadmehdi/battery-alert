@@ -9,10 +9,6 @@ namespace BatteryAlert
         private readonly Action<string, string> _onAlert;
         private readonly Action<string> _onStatus;
 
-        private DateTime _lastHigh = DateTime.MinValue;
-        private DateTime _lastLow = DateTime.MinValue;
-        private DateTime _lastTemp = DateTime.MinValue;
-
         public BatteryMonitor(Settings settings, Action<string, string> onAlert, Action<string> onStatus)
         {
             _settings = settings;
@@ -24,6 +20,8 @@ namespace BatteryAlert
 
         public void Check()
         {
+            AlertState state = StateStore.Load();
+
             PowerStatus status = SystemInformation.PowerStatus;
             int percent = (int)Math.Round(status.BatteryLifePercent * 100);
             bool charging = status.PowerLineStatus == PowerLineStatus.Online;
@@ -34,26 +32,26 @@ namespace BatteryAlert
 
             if (enableHigh && charging && percent >= _settings.High)
             {
-                if ((now - _lastHigh).TotalMinutes > _settings.RepHighMinutes)
+                if ((now - state.LastHigh).TotalMinutes > _settings.RepHighMinutes)
                 {
-                    _lastHigh = now;
-                    _lastLow = DateTime.MinValue;
+                    state.LastHigh = now;
+                    state.LastLow = DateTime.MinValue;
                     _onAlert("شارژر را جدا کن", $"باتری به {percent}٪ رسید");
                 }
             }
             else if (enableLow && !charging && percent <= _settings.Low)
             {
-                if ((now - _lastLow).TotalMinutes > _settings.RepLowMinutes)
+                if ((now - state.LastLow).TotalMinutes > _settings.RepLowMinutes)
                 {
-                    _lastLow = now;
-                    _lastHigh = DateTime.MinValue;
+                    state.LastLow = now;
+                    state.LastHigh = DateTime.MinValue;
                     _onAlert("به شارژر وصل کن", $"باتری فقط {percent}٪ است");
                 }
             }
             else
             {
-                _lastHigh = DateTime.MinValue;
-                _lastLow = DateTime.MinValue;
+                state.LastHigh = DateTime.MinValue;
+                state.LastLow = DateTime.MinValue;
             }
 
             string tempText = "";
@@ -67,15 +65,15 @@ namespace BatteryAlert
 
                     if (tempActiveNow && tempC.Value >= _settings.TempHigh)
                     {
-                        if ((now - _lastTemp).TotalMinutes > _settings.RepTempMinutes)
+                        if ((now - state.LastTemp).TotalMinutes > _settings.RepTempMinutes)
                         {
-                            _lastTemp = now;
+                            state.LastTemp = now;
                             _onAlert("دمای باتری بالا رفت", $"دما به {tempC.Value:0.0}°C رسید");
                         }
                     }
                     else if (!tempActiveNow || tempC.Value < _settings.TempHigh)
                     {
-                        _lastTemp = DateTime.MinValue;
+                        state.LastTemp = DateTime.MinValue;
                     }
                 }
                 else
@@ -83,6 +81,8 @@ namespace BatteryAlert
                     tempText = "  |  دما: در دسترس نیست";
                 }
             }
+
+            StateStore.Save(state);
 
             _onStatus($"باتری: {percent}٪{tempText}");
         }

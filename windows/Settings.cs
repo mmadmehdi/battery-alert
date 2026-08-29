@@ -28,8 +28,11 @@ namespace BatteryAlert
 
         public bool RunAtStartup { get; set; } = false;
 
-        // مسیر فایل صدای دلخواه (wav). اگر خالی باشد، صدای پیش‌فرض ویندوز پخش می‌شود.
         public string SoundPath { get; set; } = "";
+
+        // آیا سیستم در حالت خواب هم برای چک کردن باتری بیدار شود؟
+        public bool WakeFromSleep { get; set; } = false;
+        public int WakeIntervalMinutes { get; set; } = 10;
 
         public List<QuietPeriod> QuietPeriods { get; set; } = new List<QuietPeriod>();
     }
